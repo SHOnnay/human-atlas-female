@@ -779,7 +779,11 @@ def check_generated(G, F, M, cfg, report, rounds=6):
             steps.append(bool(hit))
             if not hit:
                 break
-            g['pos'], d = ml.push_out(g['pos'], obs, margin=0.0008, radius=0.004, iterations=4)
+            g['pos'], d = ml.push_out(g['pos'], obs, margin=0.0008, radius=0.006, iterations=4)
+            # Taubin smoothing removes push artefacts without shrinking the part; re-checked next round.
+            t = ml.to_trimesh(g['pos'], g['idx'])
+            trimesh.smoothing.filter_taubin(t, lamb=0.5, nu=-0.53, iterations=8)
+            g['pos'] = np.asarray(t.vertices)
         history[stem] = {'collision_by_round': steps, 'clean': not steps[-1] if steps else True}
     # BodyParts3D soft tissue (pelvic floor, vessels, nerves) gives way to the generated structures.
     gen = trimesh.util.concatenate([ml.to_trimesh(g['pos'], g['idx']) for s, g in G.items() if s != 'labium_majus_left' and s != 'labium_majus_right'])
