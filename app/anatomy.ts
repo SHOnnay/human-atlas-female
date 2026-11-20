@@ -16,13 +16,36 @@ export const SYSTEMS: {id:SystemId;name:string;color:string;description:string}[
  {id:'integumentary',name:'Body surface',color:'#ba9b7d',description:'The body surface provides an outer anatomical reference. The integumentary system forms a protective barrier and contributes to sensation and temperature regulation.'},
  {id:'connective',name:'Connective tissue',color:'#aec3bb',description:'Cartilage, ligaments, and other connective tissues support, connect, and separate structures. Their roles include stabilizing joints and distributing mechanical loads.'},
 ];
-export interface Part {id:string;name:string;conceptId:string;system:SystemId;chunk:number;positions:number;normals:number;indices:number;vertexCount:number;indexCount:number;bounds:[number[],number[]]}
+/** How faithfully a part's geometry reflects its source (female package; male parts omit it). */
+export type Accuracy = 'source'|'warped'|'schematic';
+export interface Part {id:string;name:string;conceptId:string;system:SystemId;chunk:number;positions:number;normals:number;indices:number;vertexCount:number;indexCount:number;bounds:[number[],number[]];source?:string;accuracy?:Accuracy;note?:string;uberon?:string}
 export interface Concept {id:string;name:string;elements:string[]}
-export interface Atlas {version:string;sex?:'male';source?:string;scope?:string;parts:Part[];concepts:Concept[];chunks:{url:string;bytes:number;gzip?:string;gzipBytes?:number}[];triangles:number}
+export interface AtlasSource {name:string;author:string;license:string;url:string}
+export interface Atlas {version:string;sex?:Body;source?:string;scope?:string;sources?:Record<string,AtlasSource>;parts:Part[];concepts:Concept[];chunks:{url:string;bytes:number;gzip?:string;gzipBytes?:number}[];triangles:number}
+export type Body = 'male'|'female';
+export const BODIES:Record<Body,{label:string;manifest:string;caption:string;credit:string;sourceUrl:string}> = {
+ male:{label:'Male',manifest:'/models/atlas.json',caption:'ADULT HUMAN · MALE',credit:'BodyParts3D',sourceUrl:'https://lifesciencedb.jp/bp3d/'},
+ female:{label:'Female',manifest:'/models/female/atlas.json',caption:'ADULT HUMAN · FEMALE',credit:'BodyParts3D + HRA',sourceUrl:'https://doi.org/10.48539/HBM352.BTSQ.586'},
+};
+export function isBody(value:unknown):value is Body{return value==='male'||value==='female';}
+const FEMALE_REPRODUCTIVE='The female reproductive structures represented here include the ovaries, uterine tubes, uterus, vagina, external genitalia, and mammary glands. They produce oocytes and sex hormones and support fertilization, pregnancy, and lactation.';
+/** Source link for a part: the dataset it came from (falls back to BodyParts3D). */
+export function sourceFor(atlas:Atlas|null,part:Part|undefined){const key=part?.source;const s=key?atlas?.sources?.[key]:undefined;return s??{name:'BodyParts3D 4.0',author:'DBCLS',license:'CC BY 4.0',url:'https://lifesciencedb.jp/bp3d/'};}
 export type View = 'three-quarter'|'front'|'back'|'side';
 export interface SceneState {inspectorOpen?:boolean;explode:number;visible:SystemId[];selected:string[];isolate:boolean;view:View;rotate:boolean;reset:number}
 export const DEFAULT_VISIBLE:SystemId[] = ['cardiac','sensory','skeletal','muscular','arterial','venous','nervous','respiratory','digestive','urinary','lymphatic','endocrine','reproductive','connective'];
 export const EXPLANATIONS:Record<string,string> = {
+ 'uterus':'A hollow muscular organ in the pelvis. Its lining changes through the menstrual cycle and can support implantation and development during pregnancy.',
+ 'uterine cervix':'The lower, narrow part of the uterus. Its canal connects the uterine cavity with the vagina.',
+ 'vagina':'A muscular canal connecting the cervix of the uterus to the outside of the body. It provides a passage for menstrual flow and forms part of the birth canal.',
+ 'left ovary':'An organ that contains developing oocytes and produces hormones including estrogen and progesterone.',
+ 'right ovary':'An organ that contains developing oocytes and produces hormones including estrogen and progesterone.',
+ 'ovary':'Paired organs that contain developing oocytes and produce hormones including estrogen and progesterone.',
+ 'uterine tube':'Paired tubes that capture the released oocyte with their fimbriae and carry it toward the uterus. Fertilization usually occurs in the ampulla.',
+ 'clitoris':'An erectile organ with a visible glans and a larger internal body and crura that follow the pubic arch. It is richly supplied with sensory nerves.',
+ 'female urethra':'A short tube, about 4 cm long, that carries urine from the bladder to the external urethral orifice in the vestibule, in front of the vaginal opening.',
+ 'mammary gland':'Glandular lobes and ducts within the breast that can produce and convey milk to the nipple.',
+ 'breasts':'Each breast contains mammary glandular lobes and ducts embedded in fat and supported by suspensory ligaments, resting on the chest wall.',
  'heart':'A muscular pump in the chest. Its right side sends blood to the lungs; its left side sends blood through the systemic circulation.',
  'liver':'A large organ beneath the right side of the diaphragm. It processes absorbed nutrients, produces bile, and synthesizes many proteins carried in the blood.',
  'brain':'The central organ of the nervous system. Its interconnected regions support perception, movement, memory, language, and the regulation of bodily functions.',
@@ -33,4 +56,4 @@ export const EXPLANATIONS:Record<string,string> = {
  'trachea':'The main airway connecting the larynx to the bronchi. Its cartilage supports keep the airway open during breathing.',
  'diaphragm':'A broad muscle separating the chest and abdomen. When it contracts, it increases chest volume and helps draw air into the lungs.',
 };
-export function explanation(name:string,system:SystemId){return EXPLANATIONS[name.toLowerCase()] ?? SYSTEMS.find(s=>s.id===system)?.description ?? '';}
+export function explanation(name:string,system:SystemId,body:Body='male'){return EXPLANATIONS[name.toLowerCase()] ?? (body==='female'&&system==='reproductive'?FEMALE_REPRODUCTIVE:SYSTEMS.find(s=>s.id===system)?.description) ?? '';}
