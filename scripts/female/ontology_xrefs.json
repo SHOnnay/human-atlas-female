@@ -1,0 +1,1099 @@
+{
+ "labels": {
+  "body of clitoris": "FMA20000",
+  "breast": "FMA9601",
+  "broad ligament of uterus": "FMA16516",
+  "bulb of vestibule": "FMA20199",
+  "bulb of vestibule of vagina": null,
+  "bulbospongiosus": "FMA19729",
+  "cervix of uterus": "FMA17740",
+  "clitoris": "FMA9909",
+  "coccyx": "FMA20229",
+  "crus of clitoris": "FMA20175",
+  "external urethral orifice": "FMA19650",
+  "external urethral orifice of female": null,
+  "female external genitalia": "FMA45649",
+  "female pelvis": "FMA16564",
+  "female reproductive system": null,
+  "female urethra": "FMA19669",
+  "fimbria of uterine tube": "FMA18308",
+  "glans clitoris": null,
+  "glans of clitoris": "FMA19999",
+  "hip bone": "FMA16585",
+  "ischiocavernosus": "FMA19730",
+  "labium majus": "FMA20367",
+  "labium minus": "FMA20374",
+  "left bulb of vestibule": "FMA74318",
+  "left bulb of vestibule of vagina": null,
+  "left bulbospongiosus": "FMA21922",
+  "left crus of clitoris": "FMA20177",
+  "left hip bone": "FMA16587",
+  "left ischiocavernosus": "FMA21924",
+  "left labium majus": "FMA20372",
+  "left labium minus": "FMA20381",
+  "left mammary gland": "FMA286456",
+  "left ovary": "FMA7214",
+  "left uterine tube": "FMA18484",
+  "mammary gland": "FMA286452",
+  "mons pubis": "FMA20218",
+  "neck of uterus": null,
+  "ovarian ligament": "FMA55422",
+  "ovary": "FMA7209",
+  "pelvis": "FMA9578",
+  "perineal body": "FMA20274",
+  "right bulb of vestibule": "FMA74317",
+  "right bulb of vestibule of vagina": null,
+  "right bulbospongiosus": "FMA21921",
+  "right crus of clitoris": "FMA20176",
+  "right hip bone": "FMA16586",
+  "right ischiocavernosus": "FMA21923",
+  "right labium majus": "FMA20369",
+  "right labium minus": "FMA20380",
+  "right mammary gland": "FMA286454",
+  "right ovary": "FMA7213",
+  "right uterine tube": "FMA18483",
+  "round ligament of uterus": "FMA20420",
+  "sacrum": "FMA16202",
+  "skin": "FMA7163",
+  "superficial transverse perineal muscle": "FMA19731",
+  "urethra": "FMA19667",
+  "urinary bladder": "FMA15900",
+  "uterine artery": "FMA18829",
+  "uterine cervix": null,
+  "uterine tube": "FMA18245",
+  "uterine vein": "FMA18896",
+  "uterus": "FMA17558",
+  "vagina": "FMA19949",
+  "vaginal orifice": null,
+  "vestibule of vagina": "FMA19970",
+  "vulva": "FMA20462"
+ },
+ "retrieved": "2026-11-20",
+ "source": "EBI OLS4 https://www.ebi.ac.uk/ols4 (UBERON database_cross_reference; FMA exact-label search)",
+ "uberon": {
+  "UBERON:0000002": {
+   "fma": "FMA17740",
+   "label": "uterine cervix"
+  },
+  "UBERON:0000052": {
+   "fma": "FMA61965",
+   "label": "fornix of brain"
+  },
+  "UBERON:0000305": {
+   "fma": "FMA80223",
+   "label": "amnion"
+  },
+  "UBERON:0000569": {
+   "fma": "FMA15973",
+   "label": "ileocecal valve"
+  },
+  "UBERON:0000935": {
+   "fma": "FMA61961",
+   "label": "anterior commissure"
+  },
+  "UBERON:0000959": {
+   "fma": "FMA62045",
+   "label": "optic chiasma"
+  },
+  "UBERON:0000996": {
+   "fma": "FMA19949",
+   "label": "vagina"
+  },
+  "UBERON:0001052": {
+   "fma": "FMA14544",
+   "label": "rectum"
+  },
+  "UBERON:0001064": {
+   "fma": "FMA16003",
+   "label": "ventral pancreatic duct"
+  },
+  "UBERON:0001069": {
+   "fma": "FMA10468",
+   "label": "head of pancreas"
+  },
+  "UBERON:0001092": {
+   "fma": "FMA12519",
+   "label": "vertebral bone 1"
+  },
+  "UBERON:0001093": {
+   "fma": "FMA12520",
+   "label": "vertebral bone 2"
+  },
+  "UBERON:0001116": {
+   "fma": "FMA13364",
+   "label": "quadrate lobe of liver"
+  },
+  "UBERON:0001117": {
+   "fma": "FMA13365",
+   "label": "caudate lobe of liver"
+  },
+  "UBERON:0001138": {
+   "fma": "FMA14332",
+   "label": "superior mesenteric vein"
+  },
+  "UBERON:0001141": {
+   "fma": "FMA14335",
+   "label": "right renal vein"
+  },
+  "UBERON:0001142": {
+   "fma": "FMA14336",
+   "label": "left renal vein"
+  },
+  "UBERON:0001149": {
+   "fma": "FMA14480",
+   "label": "bare area of liver"
+  },
+  "UBERON:0001150": {
+   "fma": "FMA14518",
+   "label": "body of pancreas"
+  },
+  "UBERON:0001151": {
+   "fma": "FMA14519",
+   "label": "tail of pancreas"
+  },
+  "UBERON:0001152": {
+   "fma": "FMA14539",
+   "label": "cystic duct"
+  },
+  "UBERON:0001153": {
+   "fma": "FMA14541",
+   "label": "caecum"
+  },
+  "UBERON:0001154": {
+   "fma": "FMA14542",
+   "label": "vermiform appendix"
+  },
+  "UBERON:0001156": {
+   "fma": "FMA14545",
+   "label": "ascending colon"
+  },
+  "UBERON:0001157": {
+   "fma": "FMA14546",
+   "label": "transverse colon"
+  },
+  "UBERON:0001158": {
+   "fma": "FMA14547",
+   "label": "descending colon"
+  },
+  "UBERON:0001159": {
+   "fma": "FMA14548",
+   "label": "sigmoid colon"
+  },
+  "UBERON:0001174": {
+   "fma": "FMA14667",
+   "label": "common bile duct"
+  },
+  "UBERON:0001175": {
+   "fma": "FMA14668",
+   "label": "common hepatic duct"
+  },
+  "UBERON:0001176": {
+   "fma": "FMA14669",
+   "label": "right hepatic duct"
+  },
+  "UBERON:0001177": {
+   "fma": "FMA14670",
+   "label": "left hepatic duct"
+  },
+  "UBERON:0001182": {
+   "fma": "FMA14749",
+   "label": "superior mesenteric artery"
+  },
+  "UBERON:0001183": {
+   "fma": "FMA14750",
+   "label": "inferior mesenteric artery"
+  },
+  "UBERON:0001185": {
+   "fma": "FMA14752",
+   "label": "right renal artery"
+  },
+  "UBERON:0001186": {
+   "fma": "FMA14753",
+   "label": "left renal artery"
+  },
+  "UBERON:0001194": {
+   "fma": "FMA14773",
+   "label": "splenic artery"
+  },
+  "UBERON:0001196": {
+   "fma": "FMA14810",
+   "label": "middle colic artery"
+  },
+  "UBERON:0001218": {
+   "fma": "FMA15406",
+   "label": "middle colic vein"
+  },
+  "UBERON:0001219": {
+   "fma": "FMA15408",
+   "label": "ileocolic vein"
+  },
+  "UBERON:0001222": {
+   "fma": "FMA15571",
+   "label": "right ureter"
+  },
+  "UBERON:0001223": {
+   "fma": "FMA15572",
+   "label": "left ureter"
+  },
+  "UBERON:0001224": {
+   "fma": "FMA15575",
+   "label": "renal pelvis"
+  },
+  "UBERON:0001226": {
+   "fma": "FMA15613",
+   "label": "major calyx"
+  },
+  "UBERON:0001227": {
+   "fma": "FMA15614",
+   "label": "minor calyx"
+  },
+  "UBERON:0001228": {
+   "fma": "FMA15622",
+   "label": "renal papilla"
+  },
+  "UBERON:0001247": {
+   "fma": "FMA15823",
+   "label": "falciform ligament"
+  },
+  "UBERON:0001248": {
+   "fma": "FMA15841",
+   "label": "hilum of spleen"
+  },
+  "UBERON:0001257": {
+   "fma": "FMA15910",
+   "label": "trigone of urinary bladder"
+  },
+  "UBERON:0001284": {
+   "fma": "FMA17633",
+   "label": "renal column"
+  },
+  "UBERON:0001310": {
+   "fma": "FMA18820",
+   "label": "umbilical artery"
+  },
+  "UBERON:0001317": {
+   "fma": "FMA18884",
+   "label": "internal iliac vein"
+  },
+  "UBERON:0001350": {
+   "fma": "FMA20229",
+   "label": "coccyx"
+  },
+  "UBERON:0001439": {
+   "fma": "FMA24018",
+   "label": "compact bone tissue"
+  },
+  "UBERON:0001496": {
+   "fma": "FMA3736",
+   "label": "ascending aorta"
+  },
+  "UBERON:0001508": {
+   "fma": "FMA3768",
+   "label": "arch of aorta"
+  },
+  "UBERON:0001514": {
+   "fma": "FMA3784",
+   "label": "descending aorta"
+  },
+  "UBERON:0001529": {
+   "fma": "FMA3932",
+   "label": "brachiocephalic artery"
+  },
+  "UBERON:0001536": {
+   "fma": "FMA4058",
+   "label": "left common carotid artery plus branches"
+  },
+  "UBERON:0001584": {
+   "fma": "FMA4694",
+   "label": "left subclavian artery"
+  },
+  "UBERON:0001619": {
+   "fma": "FMA49868",
+   "label": "ophthalmic artery"
+  },
+  "UBERON:0001625": {
+   "fma": "FMA50039",
+   "label": "right coronary artery"
+  },
+  "UBERON:0001626": {
+   "fma": "FMA50040",
+   "label": "left coronary artery"
+  },
+  "UBERON:0001639": {
+   "fma": "FMA50735",
+   "label": "hepatic portal vein"
+  },
+  "UBERON:0001651": {
+   "fma": "FMA50872",
+   "label": "right pulmonary artery"
+  },
+  "UBERON:0001652": {
+   "fma": "FMA50873",
+   "label": "left pulmonary artery"
+  },
+  "UBERON:0001738": {
+   "fma": "FMA55099",
+   "label": "thyroid cartilage"
+  },
+  "UBERON:0001742": {
+   "fma": "FMA55112",
+   "label": "epiglottic cartilage"
+  },
+  "UBERON:0001898": {
+   "fma": "FMA62008",
+   "label": "hypothalamus"
+  },
+  "UBERON:0001905": {
+   "fma": "FMA62033",
+   "label": "pineal body"
+  },
+  "UBERON:0001908": {
+   "fma": "FMA62046",
+   "label": "optic tract"
+  },
+  "UBERON:0001945": {
+   "fma": "FMA62403",
+   "label": "superior colliculus"
+  },
+  "UBERON:0001946": {
+   "fma": "FMA62404",
+   "label": "inferior colliculus"
+  },
+  "UBERON:0001947": {
+   "fma": "FMA62407",
+   "label": "red nucleus"
+  },
+  "UBERON:0002007": {
+   "fma": "FMA66254",
+   "label": "medulla of lymph node"
+  },
+  "UBERON:0002015": {
+   "fma": "FMA66610",
+   "label": "kidney capsule"
+  },
+  "UBERON:0002038": {
+   "fma": "FMA67947",
+   "label": "substantia nigra"
+  },
+  "UBERON:0002066": {
+   "fma": "FMA70317",
+   "label": "umbilical vein"
+  },
+  "UBERON:0002078": {
+   "fma": "FMA7096",
+   "label": "right cardiac atrium"
+  },
+  "UBERON:0002079": {
+   "fma": "FMA7097",
+   "label": "left cardiac atrium"
+  },
+  "UBERON:0002080": {
+   "fma": "FMA7098",
+   "label": "heart right ventricle"
+  },
+  "UBERON:0002084": {
+   "fma": "FMA7101",
+   "label": "heart left ventricle"
+  },
+  "UBERON:0002094": {
+   "fma": "FMA7133",
+   "label": "interventricular septum"
+  },
+  "UBERON:0002097": {
+   "fma": "FMA7163",
+   "label": "skin of body"
+  },
+  "UBERON:0002110": {
+   "fma": "FMA7202",
+   "label": "gallbladder"
+  },
+  "UBERON:0002115": {
+   "fma": "FMA7207",
+   "label": "jejunum"
+  },
+  "UBERON:0002116": {
+   "fma": "FMA7208",
+   "label": "ileum"
+  },
+  "UBERON:0002134": {
+   "fma": "FMA7234",
+   "label": "tricuspid valve"
+  },
+  "UBERON:0002135": {
+   "fma": "FMA7235",
+   "label": "mitral valve"
+  },
+  "UBERON:0002137": {
+   "fma": "FMA7236",
+   "label": "aortic valve"
+  },
+  "UBERON:0002146": {
+   "fma": "FMA7246",
+   "label": "pulmonary valve"
+  },
+  "UBERON:0002151": {
+   "fma": "FMA72512",
+   "label": "pontine nuclear group"
+  },
+  "UBERON:0002177": {
+   "fma": "FMA7395",
+   "label": "right main bronchus"
+  },
+  "UBERON:0002178": {
+   "fma": "FMA7396",
+   "label": "left main bronchus"
+  },
+  "UBERON:0002189": {
+   "fma": "FMA74285",
+   "label": "outer cortex of kidney"
+  },
+  "UBERON:0002194": {
+   "fma": "FMA74604",
+   "label": "capsule of lymph node"
+  },
+  "UBERON:0002264": {
+   "fma": "FMA77624",
+   "label": "olfactory bulb"
+  },
+  "UBERON:0002266": {
+   "fma": "FMA77628",
+   "label": "anterior olfactory nucleus"
+  },
+  "UBERON:0002331": {
+   "fma": "FMA85541",
+   "label": "umbilical cord"
+  },
+  "UBERON:0002333": {
+   "fma": "FMA8612",
+   "label": "pulmonary trunk"
+  },
+  "UBERON:0002336": {
+   "fma": "FMA86464",
+   "label": "corpus callosum"
+  },
+  "UBERON:0002363": {
+   "fma": "FMA9592",
+   "label": "dura mater"
+  },
+  "UBERON:0002375": {
+   "fma": "FMA9615",
+   "label": "cricoid cartilage"
+  },
+  "UBERON:0002422": {
+   "fma": "FMA78469",
+   "label": "fourth ventricle"
+  },
+  "UBERON:0002483": {
+   "fma": "FMA24019",
+   "label": "trabecular bone tissue"
+  },
+  "UBERON:0002564": {
+   "fma": "FMA62418",
+   "label": "lateral orbital gyrus"
+  },
+  "UBERON:0002570": {
+   "fma": "FMA62419",
+   "label": "medial orbital gyrus"
+  },
+  "UBERON:0002576": {
+   "fma": "FMA74890",
+   "label": "temporal pole"
+  },
+  "UBERON:0002581": {
+   "fma": "FMA61896",
+   "label": "postcentral gyrus"
+  },
+  "UBERON:0002623": {
+   "fma": "FMA62394",
+   "label": "cerebral peduncle"
+  },
+  "UBERON:0002629": {
+   "fma": "FMA61980",
+   "label": "triangular part of inferior frontal gyrus"
+  },
+  "UBERON:0002644": {
+   "fma": "FMA80183",
+   "label": "intermediate orbital gyrus"
+  },
+  "UBERON:0002657": {
+   "fma": "FMA67966",
+   "label": "posterior parahippocampal gyrus"
+  },
+  "UBERON:0002661": {
+   "fma": "FMA61857",
+   "label": "superior frontal gyrus"
+  },
+  "UBERON:0002702": {
+   "fma": "FMA61859",
+   "label": "middle frontal gyrus"
+  },
+  "UBERON:0002703": {
+   "fma": "FMA61894",
+   "label": "precentral gyrus"
+  },
+  "UBERON:0002738": {
+   "fma": "FMA62502",
+   "label": "isthmus of cingulate gyrus"
+  },
+  "UBERON:0002740": {
+   "fma": "FMA61924",
+   "label": "posterior cingulate gyrus"
+  },
+  "UBERON:0002751": {
+   "fma": "FMA61907",
+   "label": "inferior temporal gyrus"
+  },
+  "UBERON:0002756": {
+   "fma": "FMA61916",
+   "label": "anterior cingulate gyrus"
+  },
+  "UBERON:0002769": {
+   "fma": "FMA61905",
+   "label": "superior temporal gyrus"
+  },
+  "UBERON:0002771": {
+   "fma": "FMA61906",
+   "label": "middle temporal gyrus"
+  },
+  "UBERON:0002902": {
+   "fma": "FMA74892",
+   "label": "occipital pole"
+  },
+  "UBERON:0002911": {
+   "fma": "FMA74889",
+   "label": "parietal operculum"
+  },
+  "UBERON:0002943": {
+   "fma": "FMA61904",
+   "label": "lingual gyrus"
+  },
+  "UBERON:0002947": {
+   "fma": "FMA74886",
+   "label": "frontal operculum"
+  },
+  "UBERON:0002948": {
+   "fma": "FMA61901",
+   "label": "superior occipital gyrus"
+  },
+  "UBERON:0002980": {
+   "fma": "FMA61981",
+   "label": "opercular part of inferior frontal gyrus"
+  },
+  "UBERON:0003020": {
+   "fma": "FMA61890",
+   "label": "subcallosal area"
+  },
+  "UBERON:0003023": {
+   "fma": "FMA71108",
+   "label": "pontine tegmentum"
+  },
+  "UBERON:0003126": {
+   "fma": "FMA7394",
+   "label": "trachea"
+  },
+  "UBERON:0003604": {
+   "fma": "FMA7434",
+   "label": "trachea cartilage"
+  },
+  "UBERON:0003690": {
+   "fma": "FMA16202",
+   "label": "fused sacrum"
+  },
+  "UBERON:0003713": {
+   "fma": "FMA14331",
+   "label": "splenic vein"
+  },
+  "UBERON:0004027": {
+   "fma": null,
+   "label": "chorionic plate"
+  },
+  "UBERON:0004200": {
+   "fma": "FMA258870",
+   "label": "kidney pyramid"
+  },
+  "UBERON:0004230": {
+   "fma": "FMA67990",
+   "label": "urinary bladder neck smooth muscle"
+  },
+  "UBERON:0004536": {
+   "fma": "FMA63815",
+   "label": "lymph vasculature"
+  },
+  "UBERON:0004612": {
+   "fma": "FMA12521",
+   "label": "mammalian cervical vertebra 3"
+  },
+  "UBERON:0004613": {
+   "fma": "FMA12522",
+   "label": "mammalian cervical vertebra 4"
+  },
+  "UBERON:0004614": {
+   "fma": "FMA12523",
+   "label": "mammalian cervical vertebra 5"
+  },
+  "UBERON:0004615": {
+   "fma": "FMA12524",
+   "label": "mammalian cervical vertebra 6"
+  },
+  "UBERON:0004616": {
+   "fma": "FMA12525",
+   "label": "mammalian cervical vertebra 7"
+  },
+  "UBERON:0004617": {
+   "fma": "FMA13072",
+   "label": "lumbar vertebra 1"
+  },
+  "UBERON:0004618": {
+   "fma": "FMA13073",
+   "label": "lumbar vertebra 2"
+  },
+  "UBERON:0004619": {
+   "fma": "FMA13074",
+   "label": "lumbar vertebra 3"
+  },
+  "UBERON:0004620": {
+   "fma": "FMA13075",
+   "label": "lumbar vertebra 4"
+  },
+  "UBERON:0004621": {
+   "fma": "FMA13076",
+   "label": "lumbar vertebra 5"
+  },
+  "UBERON:0004626": {
+   "fma": "FMA9165",
+   "label": "thoracic vertebra 1"
+  },
+  "UBERON:0004627": {
+   "fma": "FMA9187",
+   "label": "thoracic vertebra 2"
+  },
+  "UBERON:0004628": {
+   "fma": "FMA9209",
+   "label": "thoracic vertebra 3"
+  },
+  "UBERON:0004629": {
+   "fma": "FMA9248",
+   "label": "thoracic vertebra 4"
+  },
+  "UBERON:0004630": {
+   "fma": "FMA9922",
+   "label": "thoracic vertebra 5"
+  },
+  "UBERON:0004631": {
+   "fma": "FMA9945",
+   "label": "thoracic vertebra 6"
+  },
+  "UBERON:0004632": {
+   "fma": "FMA9968",
+   "label": "thoracic vertebra 7"
+  },
+  "UBERON:0004633": {
+   "fma": "FMA10014",
+   "label": "thoracic vertebra 9"
+  },
+  "UBERON:0004634": {
+   "fma": "FMA10037",
+   "label": "thoracic vertebra 10"
+  },
+  "UBERON:0004635": {
+   "fma": "FMA10059",
+   "label": "thoracic vertebra 11"
+  },
+  "UBERON:0004636": {
+   "fma": "FMA10081",
+   "label": "thoracic vertebra 12"
+  },
+  "UBERON:0004671": {
+   "fma": "FMA61893",
+   "label": "gyrus rectus"
+  },
+  "UBERON:0004720": {
+   "fma": "FMA76928",
+   "label": "cerebellar vermis"
+  },
+  "UBERON:0004725": {
+   "fma": null,
+   "label": "piriform cortex"
+  },
+  "UBERON:0004887": {
+   "fma": "FMA9751",
+   "label": "left lung hilus"
+  },
+  "UBERON:0004888": {
+   "fma": "FMA7456",
+   "label": "right lung hilus"
+  },
+  "UBERON:0004913": {
+   "fma": "FMA15076",
+   "label": "hepatopancreatic ampulla"
+  },
+  "UBERON:0005429": {
+   "fma": "FMA14534",
+   "label": "dorsal pancreatic duct"
+  },
+  "UBERON:0005436": {
+   "fma": "FMA14771",
+   "label": "common hepatic artery"
+  },
+  "UBERON:0005438": {
+   "fma": "FMA4706",
+   "label": "coronary sinus"
+  },
+  "UBERON:0005457": {
+   "fma": "FMA71195",
+   "label": "left thymus lobe"
+  },
+  "UBERON:0005469": {
+   "fma": "FMA71194",
+   "label": "right thymus lobe"
+  },
+  "UBERON:0005969": {
+   "fma": "FMA77660",
+   "label": "eye trabecular meshwork"
+  },
+  "UBERON:0006082": {
+   "fma": "FMA15908",
+   "label": "fundus of urinary bladder"
+  },
+  "UBERON:0006092": {
+   "fma": "FMA61903",
+   "label": "cuneus cortex"
+  },
+  "UBERON:0006093": {
+   "fma": "FMA61900",
+   "label": "precuneus cortex"
+  },
+  "UBERON:0006447": {
+   "fma": "FMA71191",
+   "label": "L5 segment of lumbar spinal cord"
+  },
+  "UBERON:0006448": {
+   "fma": "FMA71187",
+   "label": "L1 segment of lumbar spinal cord"
+  },
+  "UBERON:0006449": {
+   "fma": "FMA71189",
+   "label": "L3 segment of lumbar spinal cord"
+  },
+  "UBERON:0006450": {
+   "fma": "FMA71188",
+   "label": "L2 segment of lumbar spinal cord"
+  },
+  "UBERON:0006451": {
+   "fma": "FMA71190",
+   "label": "L4 segment of lumbar spinal cord"
+  },
+  "UBERON:0006452": {
+   "fma": "FMA71170",
+   "label": "T4 segment of thoracic spinal cord"
+  },
+  "UBERON:0006453": {
+   "fma": "FMA71171",
+   "label": "T5 segment of thoracic spinal cord"
+  },
+  "UBERON:0006454": {
+   "fma": "FMA71172",
+   "label": "T6 segment of thoracic spinal cord"
+  },
+  "UBERON:0006455": {
+   "fma": "FMA71173",
+   "label": "T7 segment of thoracic spinal cord"
+  },
+  "UBERON:0006456": {
+   "fma": "FMA71174",
+   "label": "T8 segment of thoracic spinal cord"
+  },
+  "UBERON:0006457": {
+   "fma": "FMA62421",
+   "label": "T1 segment of thoracic spinal cord"
+  },
+  "UBERON:0006458": {
+   "fma": "FMA62422",
+   "label": "T2 segment of thoracic spinal cord"
+  },
+  "UBERON:0006459": {
+   "fma": "FMA71169",
+   "label": "T3 segment of thoracic spinal cord"
+  },
+  "UBERON:0006460": {
+   "fma": "FMA256625",
+   "label": "S1 segment of sacral spinal cord"
+  },
+  "UBERON:0006461": {
+   "fma": "FMA256627",
+   "label": "S2 segment of sacral spinal cord"
+  },
+  "UBERON:0006462": {
+   "fma": "FMA256629",
+   "label": "S3 segment of sacral spinal cord"
+  },
+  "UBERON:0006463": {
+   "fma": "FMA256631",
+   "label": "S4 segment of sacral spinal cord"
+  },
+  "UBERON:0006465": {
+   "fma": "FMA71175",
+   "label": "T9 segment of thoracic spinal cord"
+  },
+  "UBERON:0006466": {
+   "fma": "FMA71176",
+   "label": "T10 segment of thoracic spinal cord"
+  },
+  "UBERON:0006467": {
+   "fma": "FMA71177",
+   "label": "T11 segment of thoracic spinal cord"
+  },
+  "UBERON:0006468": {
+   "fma": "FMA71178",
+   "label": "T12 segment of thoracic spinal cord"
+  },
+  "UBERON:0006469": {
+   "fma": "FMA71179",
+   "label": "C1 segment of cervical spinal cord"
+  },
+  "UBERON:0006470": {
+   "fma": "FMA71186",
+   "label": "C8 segment of cervical spinal cord"
+  },
+  "UBERON:0006488": {
+   "fma": "FMA71181",
+   "label": "C3 segment of cervical spinal cord"
+  },
+  "UBERON:0006489": {
+   "fma": "FMA71180",
+   "label": "C2 segment of cervical spinal cord"
+  },
+  "UBERON:0006490": {
+   "fma": "FMA71182",
+   "label": "C4 segment of cervical spinal cord"
+  },
+  "UBERON:0006491": {
+   "fma": "FMA71183",
+   "label": "C5 segment of cervical spinal cord"
+  },
+  "UBERON:0006492": {
+   "fma": "FMA71184",
+   "label": "C6 segment of cervical spinal cord"
+  },
+  "UBERON:0006493": {
+   "fma": "FMA71185",
+   "label": "C7 segment of cervical spinal cord"
+  },
+  "UBERON:0006587": {
+   "fma": "FMA14080",
+   "label": "ligamentum venosum"
+  },
+  "UBERON:0006588": {
+   "fma": "FMA14079",
+   "label": "round ligament of liver"
+  },
+  "UBERON:0006679": {
+   "fma": "FMA7465",
+   "label": "carina of trachea"
+  },
+  "UBERON:0006687": {
+   "fma": "FMA77168",
+   "label": "median sacral vein"
+  },
+  "UBERON:0006958": {
+   "fma": "FMA4707",
+   "label": "great vein of heart"
+  },
+  "UBERON:0008716": {
+   "fma": "FMA15610",
+   "label": "hilum of kidney"
+  },
+  "UBERON:0008884": {
+   "fma": "FMA72829",
+   "label": "left putamen"
+  },
+  "UBERON:0008885": {
+   "fma": "FMA72828",
+   "label": "right putamen"
+  },
+  "UBERON:0009687": {
+   "fma": "FMA4713",
+   "label": "middle cardiac vein"
+  },
+  "UBERON:0009853": {
+   "fma": "FMA17739",
+   "label": "body of uterus"
+  },
+  "UBERON:0010223": {
+   "fma": "FMA58254",
+   "label": "left pupil"
+  },
+  "UBERON:0010224": {
+   "fma": "FMA58253",
+   "label": "right pupil"
+  },
+  "UBERON:0010373": {
+   "fma": "FMA15857",
+   "label": "uncinate process of pancreas"
+  },
+  "UBERON:0010396": {
+   "fma": null,
+   "label": "afferent lymphatic vessel"
+  },
+  "UBERON:0010397": {
+   "fma": null,
+   "label": "efferent lymphatic vessel"
+  },
+  "UBERON:0010417": {
+   "fma": null,
+   "label": "lymph node T cell domain"
+  },
+  "UBERON:0010427": {
+   "fma": "FMA76551",
+   "label": "ciliary processes"
+  },
+  "UBERON:0010748": {
+   "fma": null,
+   "label": "lymph node follicle"
+  },
+  "UBERON:0011050": {
+   "fma": "FMA9991",
+   "label": "thoracic vertebra 8"
+  },
+  "UBERON:0011191": {
+   "fma": null,
+   "label": "ophthalmic vein"
+  },
+  "UBERON:0011828": {
+   "fma": "FMA58091",
+   "label": "areolar tubercle"
+  },
+  "UBERON:0012065": {
+   "fma": "FMA7423",
+   "label": "lobar bronchus of left lung upper lobe"
+  },
+  "UBERON:0012066": {
+   "fma": "FMA7432",
+   "label": "lobar bronchus of left lung lower lobe"
+  },
+  "UBERON:0012332": {
+   "fma": "FMA16516",
+   "label": "broad ligament of uterus"
+  },
+  "UBERON:0012472": {
+   "fma": "FMA16521",
+   "label": "hepatoduodenal ligament"
+  },
+  "UBERON:0013138": {
+   "fma": "FMA15822",
+   "label": "coronary ligament of liver"
+  },
+  "UBERON:0013644": {
+   "fma": "FMA14927",
+   "label": "duodenal ampulla"
+  },
+  "UBERON:0013759": {
+   "fma": "FMA17747",
+   "label": "internal cervical os"
+  },
+  "UBERON:0013760": {
+   "fma": "FMA76836",
+   "label": "external cervical os"
+  },
+  "UBERON:0013772": {
+   "fma": "FMA223695",
+   "label": "left nipple"
+  },
+  "UBERON:0013773": {
+   "fma": "FMA223693",
+   "label": "right nipple"
+  },
+  "UBERON:0014608": {
+   "fma": "FMA273129",
+   "label": "inferior occipital gyrus"
+  },
+  "UBERON:0014899": {
+   "fma": null,
+   "label": "anterolateral ligament of knee"
+  },
+  "UBERON:0015134": {
+   "fma": "FMA62102",
+   "label": "main lactiferous duct"
+  },
+  "UBERON:0016479": {
+   "fma": "FMA15813",
+   "label": "capsule of liver"
+  },
+  "UBERON:0018140": {
+   "fma": null,
+   "label": "mammary lobe"
+  },
+  "UBERON:0018252": {
+   "fma": "FMA18917",
+   "label": "internal pudendal vein"
+  },
+  "UBERON:0022264": {
+   "fma": "FMA61941",
+   "label": "optic radiation"
+  },
+  "UBERON:0022268": {
+   "fma": null,
+   "label": "planum temporale"
+  },
+  "UBERON:0022276": {
+   "fma": "FMA14551",
+   "label": "splenic flexure of colon"
+  },
+  "UBERON:0022277": {
+   "fma": "FMA14550",
+   "label": "hepatic flexure of colon"
+  },
+  "UBERON:0022364": {
+   "fma": "FMA71033",
+   "label": "occipital fusiform gyrus"
+  },
+  "UBERON:0022383": {
+   "fma": "FMA71039",
+   "label": "anterior parahippocampal gyrus"
+  },
+  "UBERON:0023861": {
+   "fma": null,
+   "label": "planum polare"
+  },
+  "UBERON:0035040": {
+   "fma": "FMA14832",
+   "label": "superior rectal artery"
+  },
+  "UBERON:0035180": {
+   "fma": "FMA14830",
+   "label": "sigmoid artery"
+  },
+  "UBERON:0035374": {
+   "fma": "FMA4714",
+   "label": "small cardiac vein"
+  },
+  "UBERON:0035392": {
+   "fma": "FMA15403",
+   "label": "cystic vein"
+  },
+  "UBERON:0035422": {
+   "fma": "FMA3895",
+   "label": "circumflex branch of left coronary artery"
+  },
+  "UBERON:0035444": {
+   "fma": "FMA15821",
+   "label": "triangular ligament of liver"
+  },
+  "UBERON:0035548": {
+   "fma": null,
+   "label": "colic artery"
+  },
+  "UBERON:0035932": {
+   "fma": "FMA273508",
+   "label": "anterior segment of paracentral lobule"
+  },
+  "UBERON:0039222": {
+   "fma": "FMA14835",
+   "label": "cystic artery"
+  },
+  "UBERON:7500033": {
+   "fma": null,
+   "label": "obsolete distal-most point of medial condyle of femur"
+  }
+ }
+}

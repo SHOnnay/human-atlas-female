@@ -1,0 +1,50 @@
+{
+ "comment": "Female atlas configuration. Element ids are BodyParts3D 4.0 (FJxxxx). See DECISIONS.md.",
+ "male_only": {
+  "FJ3132": "Corpus cavernosum of penis",
+  "FJ3133": "Corpus spongiosum of penis",
+  "FJ3134": "Glans penis",
+  "FJ3135": "Left deferent duct",
+  "FJ3136": "Left epididymis",
+  "FJ3137": "Left seminal vesicle",
+  "FJ3138": "Left testis",
+  "FJ3139": "Prostate",
+  "FJ3140": "Right deferent duct",
+  "FJ3141": "Right epididymis",
+  "FJ3142": "Right testis",
+  "FJ3143": "Right seminal vesicle",
+  "FJ3148": "Urethra (male: prostatic, membranous and spongy parts)",
+  "FJ2056": "Deep dorsal vein of penis",
+  "FJ2208": "Superficial dorsal vein of penis",
+  "FJ3426": "Left superficial dorsal vein of penis",
+  "FJ3637": "Right superficial dorsal vein of penis",
+  "FJ3496": "Left dorsal artery of penis",
+  "FJ3497": "Left dorsal artery of penis",
+  "FJ3592": "Right dorsal artery of penis",
+  "FJ3593": "Right dorsal artery of penis",
+  "FJ3532": "Left testicular artery",
+  "FJ3533": "Left testicular vein",
+  "FJ3617": "Right testicular artery",
+  "FJ3618": "Right testicular vein",
+  "FJ2815": "Pubic hair (male distribution, follows the scrotal surface)"
+ },
+ "male_only_patterns": ["penis", "testi", "scrot", "prostat", "seminal", "deferent", "epididym", "spermatic", "cremaster", "ejaculat", "bulbourethral"],
+ "replaced": {
+  "FJ3149": {"by": "hra_bladder", "reason": "Female urinary bladder from HRA (scan-derived, female relations to uterus and vagina)."}
+ },
+ "pelvis_bones": {"hip_L": "FJ3288", "hip_R": "FJ3152", "sacrum": "FJ3393", "femur_L": "FJ3259", "femur_R": "FJ3365"},
+ "rigid_patterns": ["femur", "vertebra", "intervertebral", "rib", "patella", "tibia", "fibula"],
+ "skin": "FJ2810",
+ "pelvis_morph": {
+  "comment": "Landmark targets as multipliers of each landmark's distance from the midsagittal plane (x), plus explicit shifts. Acetabula and the sacral base stay fixed so the femoral heads and L5 still articulate. Values are chosen to move male BodyParts3D measures toward published female means; see DECISIONS.md and DATA_SOURCES.md.",
+  "x_scale": {
+   "ischial_tuberosity": 1.32, "ramus_mid": 1.55, "symphysis_bottom": 1.5, "symphysis_top": 1.05,
+   "pubic_tubercle": 1.10, "inlet_lateral": 1.10, "asis": 1.06, "iliac_lateral": 1.08, "iliac_crest": 1.06,
+   "psis": 1.06, "sacral_ala": 1.10
+  },
+  "symphysis_shortening": 0.15,
+  "crest_lowering": 0.04,
+  "sacral_shortening": 0.10
+ },
+ "stature": {"comment": "Uniform scale for all shared BodyParts3D structures: HRA female skin height / BodyParts3D skin height (computed at build time)."}
+}
