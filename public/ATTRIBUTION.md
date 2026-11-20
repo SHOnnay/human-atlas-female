@@ -17,67 +17,70 @@ BodyParts3D represents an adult male reference anatomy based on TARO MRI and ana
 
 ## Female model (`/models/female/`)
 
-The female model combines three sources. Each mesh records its source (`source`) and how faithful it is (`accuracy`: `source`, `warped`, or `schematic`) in `models/female/atlas.json`.
+Every mesh records its source (`source`) and provenance (`accuracy`: `scan-derived`, `warped`, or `generated`) in `models/female/atlas.json`. The viewer shows the provenance as a badge on every structure.
 
-### 1. BodyParts3D 4.0 — shared structures
+### 1. Human Reference Atlas — the female body (scan-derived)
 
-BodyParts3D, © The Database Center for Life Science, licensed under CC Attribution 4.0 International (as above).
-
-Adaptations:
-- Uniformly scaled by 0.9691, so that skin height matches the HRA female reference body.
-- 26 male-only meshes removed. The male urinary bladder is replaced by the HRA one.
-- **The hip bones and sacrum are morphed toward female pelvic proportions** with a landmark-driven thin-plate-spline warp. They are marked approximate.
-- The same smooth warp is applied to surrounding soft tissue.
-- Bowel, ureters, vessels and pelvic floor muscles near the female organs are locally displaced to clear them.
-- The skin has the external male genitalia removed, the opening closed schematically, and the chest reshaped over the breasts. It is marked approximate.
-
-### 2. Human Reference Atlas — female organs
-
-Kristen Browne and Heidi Schlehlein, Human Reference Atlas / HuBMAP, *3D Reference Organ Set for Female v1.5* (2023). Licensed CC BY 4.0.
+Kristen Browne and Heidi Schlehlein, Human Reference Atlas / HuBMAP, *3D Reference Organ Set for Female v1.5* (2023), derived from the Visible Human Female. Licensed CC BY 4.0.
 
 - Source DOI: https://doi.org/10.48539/HBM352.BTSQ.586
 - Dataset: https://lod.humanatlas.io/ref-organ/united-female/v1.5
 - Original GLB: https://cdn.humanatlas.io/digital-objects/ref-organ/united-female/v1.5/assets/3d-vh-f-united.glb
 - License: https://creativecommons.org/licenses/by/4.0/
 
-Used: uterus, cervix, uterine tubes, ovaries, uterine and ovarian ligaments, mesosalpinx, mesovarium, uterovesical pouch, vagina, urinary bladder, uterine arteries and veins, mammary glands (lobes, ducts, sinuses, fat, suspensory ligaments, nipples, areolae) and coccyx.
+**Used:**
+- the skin (the whole body surface)
+- the pelvis (ilia, ischia, pubes, sacrum) and the coccyx
+- the uterus, cervix and uterine tubes
+- the ovaries and the ligaments of the uterus and ovaries
+- the vagina and the urinary bladder
+- the uterine arteries and veins
+- the breasts: mammary lobes, lactiferous ducts and sinuses, breast adipose body, suspensory ligaments, nipples and areolae
+- the lungs: all bronchopulmonary segments and hila
 
-Adaptations:
-- Coincident vertices welded and normals averaged.
-- Pelvic organs placed with one similarity transform (scale 0.862) fitted to pelvic landmarks, then shifted 5 mm to clear bone.
-- Breasts placed by height and chest-wall contact at native size.
-- Coccyx re-oriented to continue the morphed sacrum.
-- Thin ligaments and uterine vessels locally displaced to stay inside the pelvic walls.
+**Adaptations:**
+- Translated so the feet rest on the stage; scale and mutual positions are unchanged.
+- Coincident vertices welded.
+- Cracks between uterine pieces closed by projecting near-coincident vertices (≤ 2.5 mm).
+- Breasts moved forward by the measured overlap with the chest wall.
+- Lactiferous ducts and sinuses kept 1.5 mm inside the skin.
+- Thin uterine ligaments kept in front of the sacrum and medial to the hip bones.
 - Simplified with a 0.2% per-structure error bound; normals quantized.
-- Two labels corrected: the source swaps the left and right round ligaments.
+- Left/right labels of the round ligaments corrected (they are swapped in the source).
 
-The HRA pelvis was used only as a measurement reference. Placenta and umbilical structures are not included.
+### 2. BodyParts3D 4.0 — every other structure (warped approximation)
 
-### 3. Generated schematic structures (this project)
+BodyParts3D, © DBCLS, CC BY 4.0 (as above). All non-female-specific structures are carried into the HRA female body:
+- **Torso, head, neck and legs:** a landmark-based thin-plate-spline warp.
+- **Arms:** as articulated rigid segments (upper arm, forearm, hand).
+- **Make-room adjustments:** bowel, vessels, nerves and pelvic floor muscles are locally displaced around the real female organs and pelvis.
 
-These were created for Human Atlas with Blender scripts in `scripts/female/create_*.py` and are released under CC BY 4.0, together with this dataset:
+Removed in the female model:
+- male-only structures (26)
+- the male hip bones, sacrum, urinary bladder and skin (replaced by HRA)
+- head hair, eyebrows and lips (surface details of the male skin)
+
+### 3. Generated structures (this project)
+
+Created with the scripts in `scripts/female/` (Blender 4.2 and Python) and released under CC BY 4.0 together with this dataset:
 - labia majora and minora
 - vestibule
-- glans, body and crura of the clitoris
+- clitoris (glans, body, crura) and its prepuce
 - vestibular bulbs
+- greater vestibular (Bartholin's) and paraurethral (Skene's) glands
+- mons pubis
+- perineal body
 - female urethra
 - female ischiocavernosus and bulbospongiosus
+- ovarian arteries and veins
+- gluteofemoral subcutaneous fat
 
-**They are approximate / schematic and not scan-derived.** Dimensions are taken from published ranges (Lloyd et al. 2005, BJOG; O'Connell et al. 1998 and 2005, J Urol; Gray's Anatomy 42nd ed.), and positions are derived from neighbouring atlas structures. See `DATA_SOURCES.md` in the repository.
+**They are schematic, not scan-derived.** Dimensions come from published ranges (Lloyd et al. 2005; O'Connell et al. 1998 and 2005; Gray's Anatomy 42nd ed.), and positions from the real neighbouring structures. See `DATA_SOURCES.md`.
 
-No CC BY-SA or non-commercial data is included, so no share-alike terms apply.
+No CC BY-SA, non-commercial, SMPL or paid data is included, so no share-alike terms apply.
 
-This interface is educational and is not a clinical, diagnostic or surgical tool. The female model is a composite reference assembly, not a single person, and does not represent every body or variation.
+This interface is educational and is not a clinical, diagnostic or surgical tool. The female model is a composite: one real woman's body (the Visible Human Female, aged 59) combined with reshaped male anatomy and schematic structures. It does not represent every body or variation.
 
 ## Historical assets
 
-Earlier repository revisions included female reference anatomy: Kristen Browne and Heidi Schlehlein, Human Reference Atlas / HuBMAP, *3D Reference Organ Set for Female v1.5* (2023). CC BY 4.0. Geometry adapted for this viewer.
-
-- Source DOI: https://doi.org/10.48539/HBM352.BTSQ.586
-- Dataset: https://lod.humanatlas.io/ref-organ/united-female/v1.5
-- Original GLB: https://cdn.humanatlas.io/digital-objects/ref-organ/united-female/v1.5/assets/3d-vh-f-united.glb
-- License: https://creativecommons.org/licenses/by/4.0/
-
-Adaptations: translated native meter/Y-up coordinates onto the stage, coincident vertices welded and source normals averaged, geometry simplified with a 0.2% per-structure relative error bound, and normals quantized. Colors and display systems are curated for this interface. All 888 source meshes are represented, with 1,073 source nodes available as selectable individual or compound concepts.
-
-This is a reference assembly with whole-body surface and selected organs, including female reproductive anatomy. Its skeleton and muscle coverage is partial. It is not a complete model of every human structure or a single-person scan. Eight placenta/umbilical structures are classified under Pregnancy reference and hidden by default.
+Earlier repository revisions included female reference anatomy from the same HRA dataset (Kristen Browne and Heidi Schlehlein, *3D Reference Organ Set for Female v1.5*, CC BY 4.0).

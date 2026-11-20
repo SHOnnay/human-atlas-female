@@ -1,147 +1,134 @@
-# Verification — female anatomy model
+# Verification — female anatomy model (version 2)
 
-Run on 2026-11-20 on Windows 10 with Node 24.11, Python 3.12 and Blender 4.2.23 LTS. Playwright drove headless Chromium with software WebGL (SwiftShader).
+Run on 2026-11-20 with Windows 10, Node 24.11, Python 3.12, Blender 4.2.23 LTS, and Playwright with headless Chromium (software WebGL).
 
-**Evidence levels**:
-- **[V]**: validation script, deterministic; run with `node scripts/validate-*.mjs`
-- **[B]**: build-time geometric check; output in `work/female/report.json`
-- **[H]**: headless browser (`scripts/verify-browser.py`)
-- **[I]**: I inspected the image
+Evidence levels:
+- **[V]**: validation script
+- **[B]**: build or gate script (`work/female/*.json`)
+- **[H]**: headless browser
+- **[I]**: images reviewed by me
 - **[—]**: not tested
 
-Nothing was tested on a physical phone, a GPU or real multitouch hardware.
+Nothing was tested on physical devices or by an anatomist.
 
-## Commands
+## Gate D — commands
 
 | Command | Result |
 |---|---|
-| `npm run check` | pass (tsc, no errors) |
-| `node scripts/validate-atlas.mjs` | pass: male 2,234 meshes / 3,432 concepts / 2,288,268 triangles; female 2,287 / 3,497 / 2,503,013; all buffers, indices and concept memberships valid |
-| `node scripts/validate-interactions.mjs` | pass: packing at 3 aspect ratios for both bodies and every system, search/inspect contracts, WebMCP `body` (sync and lazy), selection carry-over, tap handling |
-| `npm run build` | pass (same chunk-size warning as the baseline) |
-| `python scripts/verify-browser.py` | pass (screenshots below, `work/browser-report.json`) |
+| `npm run check` | pass |
+| `node scripts/validate-atlas.mjs` | pass. Male: 2,234 meshes, 3,432 concepts, 2,288,268 triangles, unchanged. Female: 2,327 meshes, 3,524 concepts, 2,052,290 triangles. Every buffer is valid, every mesh is labelled scan-derived/warped/generated consistently with its source, the skin and hip bones are the real HRA ones, there are no male-only structures, and all 31 checklist structures are present and searchable. |
+| `node scripts/validate-interactions.mjs` | pass, for both bodies: packing, search/inspect, WebMCP `body` (sync and lazy), selection carry-over, taps |
+| `npm run build` | pass |
+| `python scripts/verify-browser.py` | see "Browser" below |
+| Male files | byte-identical to the base commit (`git diff 1c38bf3 -- public/models/atlas.json public/models/body-*` is empty) |
 
-Baseline before any change: all four commands passed, and the male package was byte-identical. The male files under `public/models/` are not modified by this branch.
-
-## Size
+**Size:**
 
 | | Male | Female |
 |---|---|---|
-| Meshes | 2,234 | 2,287 (2,206 BodyParts3D, 65 HRA, 16 generated) |
-| Concepts | 3,432 | 3,497 |
-| Triangles | 2,288,268 | 2,503,013 (BodyParts3D 2,236,428 · HRA 250,889 · generated 15,696) |
-| Raw geometry | 59.5 MB | 63.4 MB |
-| **Download (gzip)** | **33.0 MB** | **35.9 MB** (+9%) |
-| Max simplification error | 0.2% | 0.19998% (same meshoptimizer bound; shared parts reused, not re-simplified) |
+| Triangles | 2,288,268 | 2,052,290 |
+| Download (gzip) | 33.0 MB | 30.1 MB |
 
-## Data checks [V]
+## Gate A — measurements [B] (`python scripts/female/measure.py`, the same code for both bodies)
 
-- Every female mesh has a name, concept id, system, `source` and `accuracy`. Every `schematic` part has a note, and every `generated` part is `schematic`.
-- No male-only structures: no part or concept name matches penis, testis, scrotum, prostate, seminal, deferent, epididymis, spermatic, cremaster, ejaculatory or bulbourethral.
-- The checklist is complete: all 21 items are present **and** found by search. They are hip bones, sacrum, coccyx, uterus, cervix, uterine tubes, fimbriae, ovaries, ovarian ligament, round ligament, broad ligament, vagina, labia majora, labia minora, clitoris, vestibule, female urethra, mammary glands, breast fat, pelvic floor muscles and female perineal muscles.
-- Picking ids are unique (2,287), and every chunk and `.gz` file exists with the declared size.
-- Left/right labels of all HRA and generated parts match their side.
-  - Two HRA round-ligament labels were swapped in the source and were corrected (DECISIONS D12).
-  - 20 shared BodyParts3D names begin with a side opposite their centroid. Most are branch names, such as "right gastric artery". They are unchanged from the male package and are reported, not altered.
+| Measure | Male | **Female** | Female reference range (source) | Result |
+|---|---|---|---|---|
+| Height | 171.9 cm | **166.6 cm** | 150–178 cm (NHANES 2015–18, Fryar 2021) | PASS |
+| Biacromial width (over the acromia, skin) | 36.8 cm | **35.0 cm** | 32–41 cm (ANSUR II, Gordon 2014) | PASS |
+| Ribcage width (ribs, skeletal) | 27.3 cm | **27.4 cm** | 22–30 cm (Bellemare 2003) | PASS. Note: not narrower than the BodyParts3D male, which is itself narrow. |
+| Waist circumference (minimum, skin) | 77.2 cm | **93.6 cm** | 62–110 cm (NHANES) | PASS |
+| Bi-iliac (intercristal) | 29.0 cm | **31.7 cm** | 25–32 cm (pelvimetry texts) | PASS |
+| Bitrochanteric | 30.0 cm | **35.2 cm** | 29–37 cm | PASS |
+| Shoulder-to-hip ratio (biacromial / skin hip breadth 41.3 cm) | 1.1 | **0.85 (0.848)** | 0.85–1.10 (derived from ANSUR II) | **FAIL by 0.002**: this donor's hips are broad |
+| Pelvic inlet, transverse (arcuate lines) | 11.2 cm | **13.9 cm** | 11.5–14.5 cm (Gray's; Williams Obstetrics) | PASS |
+| Pelvic inlet, AP (true conjugate) | 10.0 cm | **11.6 cm** | 10.0–12.5 cm | PASS |
+| Subpubic angle (AP-radiograph method) | 52° | **111°** | ≥ 80° gate; textbook band 80–100° | **Gate ≥ 80° PASS**, but above the textbook band. This is the real VHF arch (projection plot checked). |
+| Q-angle | 10.7° | **10.5°** | 11–21° (Horton & Hall 1989: 15.8 ± 4.5°) | **FAIL** |
 
-## Geometry checks [B]
+Supporting values:
+- **Acetabular width:** 17.5 cm male against 19.2 cm female.
+- **Femoral shaft obliquity:** 1.8° male against 2.7° female.
+- **Knee separation:** 14.8 cm male against 22.9 cm female.
 
-### Scale and pelvis
+**Honest reading:** the pelvis, inlet, outlet, hips and silhouette are clearly female. The **femurs do not angle inward to the knees** in this model. The real VHF donor stood with her knees 23 cm apart, so her femoral shafts are nearly vertical and the Q-angle stays at 10.5°.
 
-- Stature scale: **0.9691** (HRA skin 1.666 m / BodyParts3D skin 1.719 m).
+I did not alter the real bones or skin to reach 15–17°. That would require changing the scan-derived knee and skin positions, which misrepresents the data (DECISIONS D32). If a population-typical Q-angle matters more than a real donor, the fix is an MPFB2 (CC0) average female body. See README "Known limitations".
 
-| Measure (mm) | Male BodyParts3D | **Female (morphed)** | HRA female, cross-check |
-|---|---|---|---|
-| Acetabular centre distance | 169.5 | 169.5 (held fixed) | 207.6 |
-| Interspinous (ASIS) | 248.1 | **263.0** | 263.8 |
-| Intercristal | 280.8 | **303.2** | 316.9 |
-| Inlet transverse (brim proxy) | 111.8 | **121.3** | 135.5 |
-| Intertuberous (outlet) | 82.2 | **108.6** | 116.8 |
-| Sacral width (alae) | 112.2 | **123.4** | 127.5 |
-| Sacral length | 123.2 | **110.6** | 104.6 |
-| Symphysis height | 29.7 | **20.9** | 25.9 |
-| Subpubic arch (automated measure) | 115.7° | 114.9° | 152.5° |
+## Gate B — collisions and floating parts [B] (`python scripts/female/gate_checks.py`)
 
-Every morph target moved toward the real female reference, except the automated subpubic-angle measure. **It did not register a wider arch, so a widened subpubic angle is not demonstrated.** The landmarks on the rami were moved ×1.55, and the outlet widened by 26 mm. However, the measure (`meshlib.subpubic_angle`) samples the lower ramus border 25 mm from the apex and appears insensitive to that change. The pelvis is labelled approximate either way.
-
-Other pelvis and placement results:
-- The warp moved 410 shared parts, by at most 14.3 mm; muscle attachments travel with the bone.
-- HRA pelvic organs: similarity scale 0.862 and rotation 1.2°, with a mean landmark residual of 17 mm after fitting the HRA pelvis to the morphed one. A 5 mm upward block shift took sampled organ vertices inside bone from 210 to 0.
-- Coccyx: rotated 17° to continue the sacrum.
-- Ureters: distal ends bent 19 mm and 20 mm to reach the HRA ureteral orifices.
-- Breasts: native size, lateral ratio 0.96, moved forward to rest on the chest wall. The skin was pushed out by up to 20 mm over them.
-- Skin: 1,496 faces of the external male genitalia removed and 5 openings closed.
-- Generated female urethra: 43.0 mm long (reference about 40 mm).
-
-### Interpenetration (python-fcl triangle–triangle tests)
-
-Fix-and-recheck loops:
-1. Bowel, vessels and the levator group were moved out of convex hulls of the uterus, vagina, bladder, adnexa and coccyx (34 make-room moves, at most 36 mm, all clean).
-2. Thin ligaments were clamped in front of the sacrum and medial to the hip bones.
-3. Every generated structure was pushed out of bone, thigh muscles and HRA organs, Taubin-smoothed and re-checked. **Generated vs HRA organs: 0 intersections.**
-
-Remaining intersections in the final build, with their classification:
-
-| Pair (count) | Classification |
-|---|---|
-| Broad / cardinal ligament, uterine artery and vein × ureter (6) | **Anatomical contact.** The ureter passes through the base of the broad and cardinal ligaments, under the uterine artery. |
-| Round ligament × inferior epigastric vessels, external iliac vein, external oblique, epigastric veins (7) | **Anatomical contact.** The round ligament hooks around the inferior epigastric vessels and traverses the abdominal wall in the inguinal canal. |
-| Broad / cardinal ligament, uterine vessels × obturator and internal iliac veins, external iliac vessels (10) | Thin sheet on the pelvic side wall, which these vessels line. Contact expected; small overlap. |
-| Suspensory ligament of ovary × psoas (1) | **Anatomical contact.** It crosses psoas and the external iliac vessels. |
-| Uterosacral / broad ligament × rectum, lateral sacral vein, taenia (6) | Peritoneal folds lying against the rectum. Contact expected; small overlap. |
-| Coccyx × gluteus maximus (2); ischiocavernosus × ischiopubic ramus (2) | **Attachment.** Gluteus maximus and ischiocavernosus attach there. |
-| Right breast fat × external oblique (1) | The lower lateral breast lies over external oblique and serratus. Contact expected. |
-| **Vagina × internal pudendal veins (2)** | **Genuine conflict, not resolved.** The male-derived pudendal veins sit too medially for the wider female outlet, and moving them radially by up to 20 mm did not clear them. |
-
-## Browser checks [H] and screenshots [I]
-
-All screenshots are in `docs/screenshots/` and I reviewed each one.
-
-| File | What it shows | Result |
+| Check | Female | Male baseline |
 |---|---|---|
-| `01-male-default.png` | Male default | Same view as before. Toggle under the title. Caption "ADULT HUMAN · MALE". |
-| `02-female-default.png` | Female default | Body assembled on the stage, breast glandular tissue on the chest, caption "ADULT HUMAN · FEMALE", "2,287 modeled pieces · BodyParts3D + HRA". No floating parts or scale break. |
-| `03-female-reproductive-system.png` | Reproductive system only, front | Mammary lobes and ducts at chest height. Uterus, adnexa, vagina and vulva in the pelvis. |
-| `03b-female-uterus-isolated.png` | Uterus isolated | 10 pieces, FMA17558, explanation and member list. |
-| `04-female-skeleton-front.png`, `04b-…-three-quarter.png` | Skeleton preset | Pelvis present and articulated with the femurs and L5. Coccyx present. |
-| `05-female-exploded.png` | Exploded inventory, all systems | Packed inventory, caption "ANATOMICAL INVENTORY". |
-| `06-female-search-uterus.png` | Search "uterus" | Uterus, body, fundus, walls, ligaments and uterine vessels. |
-| `07-female-clitoris-approximate-badge.png` | Generated clitoris isolated | **"Approximate · schematic" badge** and note in the details panel. |
-| `08-toast-selection-cleared.png` | Uterus selected → switch to male | Toast "Uterus is not part of the male model." Selection cleared. |
-| `09-mobile-female.png`, `10-mobile-male.png`, `11-mobile-320-female.png` | 390×844 and 320×568 | Toggle with 44 px targets. View controls moved below it. Body fully visible. |
-| `12-generated-perineal-structures-below.png`, `12b-…-oblique.png` | Blender renders of all 16 generated structures with pelvis, bladder and vagina | Symmetric about the midline. Crura follow the rami. Bulbs flank the vestibule. Urethra runs from the bladder neck to the vestibule. |
-| `13-adapted-skin-vulva-front.png` | Adapted skin with labia | The male genitalia are gone and the cleft is closed; the labia majora lie in it. |
+| Parts with vertices outside the skin (all scan-derived, warped and generated parts; skin surface details excluded) | **0** | not measurable: the BodyParts3D skin is not watertight, so its voxel fill fails and all 2,227 parts register as "outside" |
+| Floating parts (no other part within 5 mm) | **0** | 0 |
 
-Generated structures, all labelled *approximate / schematic*, each covered by screenshots 07, 12, 12b and 13:
+Remaining triangle intersections between neighbouring structures (`work/female/report.json → final_intersections`):
+- **HRA pelvic vs warped (180 pairs).** Most are warped male muscles meeting the real female pelvic bones at their attachments (piriformis, gemelli, gluteals, iliacus, psoas, levator ani) after the push-off step. Thin peritoneal and ligament sheets touch vessels and the ureter, which is anatomical contact.
+- **Breast vs chest wall (24 pairs).** The deep surface of the breast adipose body meets pectoralis and costal cartilages.
+- **Generated vs warped (36 pairs).** Ovarian vessels on psoas, crossing the ureter and external iliac vessels, and behind the duodenum and colon: their real course. Also the left labium majus fat pad touching the great saphenous vein.
+- **Generated vs scan-derived organs:** not intersecting (the build pushes them apart).
 
-left and right labium majus, left and right labium minus, vestibule of vagina, glans of clitoris, body of clitoris, left and right crus of clitoris, left and right bulb of vestibule, female urethra, left and right ischiocavernosus, left and right bulbospongiosus.
+Depth of generated perineal structures below the skin [B]:
+- glans 4–10 mm
+- vestibule 4–12 mm
+- crura 19–43 mm
+- bulbs 12–27 mm
 
-Other parts labelled approximate, in metadata and in the UI badge:
-- right and left hip bone and sacrum (morphed)
-- skin (adapted)
+Every part sits above the lowest perineal skin point (y = 0.655 m), so **nothing hangs below the perineum**.
 
-Functional results [H] (`work/browser-report.json`):
-- Selecting Heart on the male body and switching keeps "Heart" selected on the female body.
-- The URL becomes `?body=female` and localStorage stores `female`.
-- WebMCP, through an injected `document.modelContext`, registers both tools:
-  - `find_anatomy({query:'ovary', body:'female'})` called from the male view returns female results.
-  - `find_anatomy({query:'uterus'})` on the male body returns `[]`.
-  - `inspect_anatomical_structure({id, body:'female'})` switches the viewer to female and opens the structure.
-- Console: no errors, and no WebGL context-loss or too-many-contexts warnings. The only messages are SwiftShader "GPU stall due to ReadPixels" performance notes caused by taking screenshots.
+## Gate C — male vs female, same camera [I] (`docs/screenshots/compare/`, also `female-review.zip`)
 
-**Memory across 10 switches [H].** Readings from `?debug` (`renderer.info`) and CDP metrics after forced GC:
+One line per image: does it read as female, and what is still wrong.
 
-| Switch | Body | Geometries | Textures | Programs | Canvases | DOM nodes | Listeners | JS heap |
-|---|---|---|---|---|---|---|---|---|
-| 0 | male | 73 | 3 | 6 | 1 | 320 | 546 | 22.3 MB |
-| 1 | female | 82 | 3 | 6 | 1 | 330 | 546 | 24.1 MB |
-| 2 | male | 73 | 3 | 6 | 1 | 340 | 546 | 24.0 MB |
-| 10 | male | 73 | 3 | 6 | 1 | 340 | 546 | 25.1 MB |
+| Image | Verdict |
+|---|---|
+| all-systems_front | **Female**: breasts with volume, waist, wide hips, uterus and adnexa in the pelvis, A-pose. Wrong: the hands look rough; the facial musculature covers the skull less completely than in the male. |
+| all-systems_side | **Female**: breast projection, protruding abdomen and gluteal curve of the real donor. Wrong: the neck musculature looks thin. |
+| all-systems_back | **Female** proportions. Wrong: the gluteal muscles are stretched into broad flat plates by the warp. |
+| all-systems_oblique | **Female**. Wrong: rough hands; the warped thigh muscles look smoother and less defined than the male's. |
+| skin-only_front | **Female** (real VHF scan): breasts, waist, wide hips, closed smooth vulva and mons. No holes. |
+| skin-only_side | **Female**. Accurate to the donor: protruding abdomen and pendulous breasts (age 59). |
+| skin-only_back | **Female**: gluteofemoral shape, wider hips than shoulders. |
+| skin-only_oblique | **Female**. No defects seen. |
+| skeleton-only_front | **Female**: wide real pelvis, broad pubic arch, the skull with its brow and jaw taking on the female head shape. Wrong: hand bones compressed and boxy; the ribcage is not narrower than the male's; the femurs do not converge to the knees (knees 23 cm apart). |
+| skeleton-only_side | **Female**. Wrong: the iliotibial tract (skeletal system) renders as a broad plate along the thigh. |
+| skeleton-only_back | **Female** pelvis and sacrum. Wrong: the lumbar spine shows a slight lateral kink from the warp; boxy hand bones. |
+| skeleton-only_oblique | **Female**. Same hand and thigh-plate issues. |
+| pelvis-closeup_front | **Female**: real wide pelvis, uterus over the bladder, tubes and ovaries at the lateral walls, real kidneys and ureters; femoral heads in the acetabula. Wrong: the generated labia hang 2–7 cm below the arch along the cleft, which is correct for the vulva but looks long in isolation; flat iliotibial plates. |
+| pelvis-closeup_side | **Female**: anteverted uterus, real sacral curve. Wrong: the thigh plates are distracting. |
+| pelvis-closeup_back | **Female** sacrum and coccyx. No other issue seen. |
+| pelvis-closeup_oblique | **Female**. Wrong: as front. |
+| perineum-closeup_front | **Female**: the vulva and clitoral complex lie in the pubic arch at the perineum. Wrong: the left labium minus reaches about 5 cm lower than the right (residual asymmetry). |
+| perineum-closeup_below | **Female**: crura along the ischiopubic rami, bulbs beside the vestibule, mons pad over the symphysis, levator ani around the vagina. Wrong: the image is busy; the mons pad shows as a flat disk. |
+| perineum-closeup_side | **Female**. Wrong: thigh plates obscure it. |
+| perineum-closeup_back | **Female** (coccyx, levator ani, perineal body). No other issue seen. |
+| perineum-closeup_oblique | **Female**. Wrong: as front. |
+| breast-closeup_front | **Female**: the adipose body covers the glands and rests on pectoralis major over about ribs 2–6. Wrong: the cervical region looks spiky in this framing (cropped neck muscles). |
+| breast-closeup_side | **Female**: breast projection, glands inside the fat, no gap to the chest wall. Wrong: as front. |
+| breast-closeup_back | Shows the back of the ribcage and scapulae; the breasts are hidden. Not informative, and nothing wrong seen. |
+| breast-closeup_oblique | **Female**. Wrong: as front. |
 
-GPU resource counts return exactly to each body's value. There is always one canvas and one context. Listeners and nodes are flat after the first switch. The JS heap drifts by about 0.1 MB per switch after warm-up (24.0 → 25.1 MB across switches 2–10). Some of that is the intended manifest cache for both bodies; the rest is not explained, so a slow JS-side leak is not fully ruled out.
+**Overall:** no image reads as male in silhouette or pelvis. The remaining visual defects are:
+- compressed hand bones
+- flat iliotibial and gluteal plates from the warp
+- a ribcage no narrower than the male
+- knees that do not converge
+- a left labium minus asymmetry
+
+They are listed in README "Known limitations".
+
+## Browser [H]
+
+`python scripts/verify-browser.py` against `npm run dev` with the final package passes. Screenshots are in `docs/screenshots/`.
+
+- **Selection carry-over:** Heart selected on the male body stays selected after switching to female. The URL becomes `?body=female` and localStorage stores `female`. Uterus selected, then switching to male, gives the toast "Uterus is not part of the male model." and clears the selection.
+- **Badge:** the clitoris shows the **"Generated · schematic"** badge; every structure shows its provenance badge.
+- **WebMCP:** `find_anatomy({query:'ovary', body:'female'})` from the male view returns female results. `{query:'uterus'}` on the male body returns `[]`. `inspect_anatomical_structure({body:'female'})` switches the body.
+- **Memory over 10 switches (`renderer.info`, after forced GC):**
+  - Geometries, textures and programs return to each body's value (male 73/3/6), with one canvas throughout.
+  - Listeners stay flat (544), and DOM nodes level at 340.
+  - The JS heap drifts 22.3 → 25.4 MB. The intended manifest cache explains part of this; the rest is unexplained, so a slow JS-side leak is not fully ruled out.
+- **Console:** no errors (only SwiftShader ReadPixels performance notes).
 
 ## Not tested [—]
 
-- Physical phones and tablets, real GPUs and real multitouch.
-- Native browser WebMCP; only an injected test shim was used.
-- Visual review by an anatomist. The generated structures and the morphed pelvis are schematic and should be read as such.
+Physical devices, native WebMCP, and anatomist review.
