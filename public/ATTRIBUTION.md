@@ -44,7 +44,7 @@ Used: uterus, cervix, uterine tubes, ovaries, uterine and ovarian ligaments, mes
 
 Adaptations:
 - Coincident vertices welded and normals averaged.
-- Pelvic organs placed with one similarity transform (scale 0.864) fitted to pelvic landmarks, then shifted 5 mm to clear bone.
+- Pelvic organs placed with one similarity transform (scale 0.862) fitted to pelvic landmarks, then shifted 5 mm to clear bone.
 - Breasts placed by height and chest-wall contact at native size.
 - Coccyx re-oriented to continue the morphed sacrum.
 - Thin ligaments and uterine vessels locally displaced to stay inside the pelvic walls.

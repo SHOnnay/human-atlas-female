@@ -73,6 +73,9 @@ The female geometry downloads only when the female body is selected. Selections 
 - The shared anatomy is male-derived, so it does not show female differences outside the pelvis and breasts, such as thyroid cartilage, muscle mass or limb proportions.
 - The morphed pelvis and the generated vulva, clitoris, urethra and perineal muscles are schematic, not measured anatomy.
 - The HRA organs come from a different person than BodyParts3D. They are fitted by landmarks, and nearby bowel and vessels were displaced to make room.
+- The perineal skin surface is inherited from the male body, so the generated vulva sits somewhat lower relative to the pubic arch than is typical.
+- The male-derived internal pudendal veins still touch the vagina. Remaining contacts are listed in VERIFICATION.md.
+- The morph widened the outlet by 26 mm, but an automated subpubic-angle measure did not confirm a wider pubic arch.
 - Ovarian vessels are not modelled; the male testicular vessels were removed.
 - No pregnancy structures are included.
 

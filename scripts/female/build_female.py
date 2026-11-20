@@ -908,6 +908,8 @@ def write_package(M, F, G, atlas, cfg, removed, report):
         if not u.startswith(('UBERON', 'FMA', 'CL', 'ILX')):
             u = ''  # source placeholder such as '-'
         fma = (xref.get(u) or {}).get('fma')
+        if u.startswith('FMA'):
+            fma, u = u.replace(':', ''), ''  # HRA gives some FMA ids directly; use the atlas's FMA12345 form
         e = {'id': n, 'name': hra_name(n, f, fixes), 'conceptId': fma or u or 'HRA:' + n, 'uberon': u, 'system': f['system'],
              'source': 'hra', 'accuracy': 'warped' if f.get('warped') else 'source'}
         if n == 'VH_F_coccyx':
