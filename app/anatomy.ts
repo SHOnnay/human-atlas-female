@@ -17,7 +17,8 @@ export const SYSTEMS: {id:SystemId;name:string;color:string;description:string}[
  {id:'connective',name:'Connective tissue',color:'#aec3bb',description:'Cartilage, ligaments, and other connective tissues support, connect, and separate structures. Their roles include stabilizing joints and distributing mechanical loads.'},
 ];
 /** How faithfully a part's geometry reflects its source (female package; male parts omit it). */
-export type Accuracy = 'source'|'warped'|'schematic';
+export type Accuracy = 'scan-derived'|'warped'|'generated';
+export const ACCURACY_LABEL:Record<Accuracy,string> = {'scan-derived':'Scan-derived','warped':'Warped approximation','generated':'Generated · schematic'};
 export interface Part {id:string;name:string;conceptId:string;system:SystemId;chunk:number;positions:number;normals:number;indices:number;vertexCount:number;indexCount:number;bounds:[number[],number[]];source?:string;accuracy?:Accuracy;note?:string;uberon?:string}
 export interface Concept {id:string;name:string;elements:string[]}
 export interface AtlasSource {name:string;author:string;license:string;url:string}

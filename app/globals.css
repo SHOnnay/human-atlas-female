@@ -93,6 +93,7 @@ h1 .edition{font-family:inherit;font-weight:500;font-size:10px;letter-spacing:.0
 .body-toggle [data-slot=toggle-group-item][aria-pressed=true]{background:#263b48;color:#fff;border-color:#263b48}
 .accuracy-badge{gap:5px;align-self:flex-start;border-color:#b8771f66;background:#fff7ea;color:#8a5a12;font-size:11px;font-weight:500;padding:3px 8px;border-radius:7px;height:auto}
 .accuracy-note{font-size:12px;line-height:1.55;color:#7a5414;background:#fff7ea;border:1px solid #b8771f33;border-radius:8px;padding:8px 10px;margin:0}.accuracy-note.subtle{color:#55697a;background:#f2f5f7;border-color:#18253612}
+.accuracy-badges{display:flex;flex-wrap:wrap;gap:5px}.accuracy-badge.accuracy-scan-derived{border-color:#2f6b5a55;background:#eef7f3;color:#2f6b5a}.accuracy-badge.accuracy-warped{border-color:#5a6e8a55;background:#eef2f8;color:#3f5470}
 .member-approx{font-style:normal;color:#9a6a1c;font-size:11px}
 @media(max-width:767px){
  .body-toggle{margin-top:8px}.body-toggle [data-slot=toggle-group-item]{min-height:44px;height:44px;min-width:72px;font-size:13px}
