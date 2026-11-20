@@ -19,7 +19,7 @@ import blender_common as bc  # noqa: E402
 lm, out = bc.args()
 bc.reset()
 ap, n, lr = bc.frame(lm)
-G = bc.V(lm['glans_site']) - n * 0.0025
+G = bc.V(lm['glans_site']) - n * 0.007  # under the prepuce, ~7 mm beneath the skin surface
 root = bc.V(lm['clitoral_root'])
 O = bc.V(lm['introitus'])
 

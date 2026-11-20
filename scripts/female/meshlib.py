@@ -380,8 +380,8 @@ def make_room(pos, idx, obstacle, direction=None, axis_point=None, axis_dir=None
     one fixed `direction` (moving a bowel loop off an organ) or radial from an axis
     (`axis_point`, `axis_dir`: opening a muscular sling around the vagina).
     Returns (new_pos, amplitude_m, clean)."""
-    import trimesh
-    _, dist, _ = trimesh.proximity.closest_point(obstacle, pos)
+    from scipy.spatial import cKDTree
+    dist, _ = cKDTree(obstacle.vertices).query(pos)  # vertex distance is enough for a smooth falloff
     w = np.exp(-(dist / sigma) ** 2)
     if direction is not None:
         dirs = np.repeat(np.asarray(direction, float)[None] / np.linalg.norm(direction), len(pos), 0)
@@ -399,6 +399,42 @@ def make_room(pos, idx, obstacle, direction=None, axis_point=None, axis_dir=None
         new = pos + dirs * (amp * w)[:, None]
     # Could not clear within max_amp: leave the tissue where it was (reported as a residual contact).
     return pos, 0.0, False
+
+
+class SkinShell:
+    """Inside/outside tests against a closed skin surface (filled voxel grid + nearest surface)."""
+
+    def __init__(self, skin, pitch=0.002):
+        from scipy.spatial import cKDTree
+        self.skin = skin
+        self.grid = skin.voxelized(pitch=pitch).fill()
+        self.tree = cKDTree(skin.vertices)
+        self.normals = skin.vertex_normals
+
+    def outside(self, pts, margin=0.0):
+        """True where a point is outside the skin or within `margin` of its surface."""
+        out = ~self.grid.is_filled(pts)
+        if margin > 0:
+            d, _ = self.tree.query(pts, distance_upper_bound=margin)
+            out |= np.isfinite(d)
+        return out
+
+    def keep_inside(self, pos, margin=0.0015, radius=0.01, iterations=6):
+        """Move protruding vertices to `margin` inside the skin along the inward normal, smoothly."""
+        pos = pos.copy()
+        total = 0.0
+        for _ in range(iterations):
+            bad = np.where(self.outside(pos, margin))[0]
+            if not len(bad):
+                break
+            _, i = self.tree.query(pos[bad])
+            n = self.normals[i]
+            depth = ((pos[bad] - self.skin.vertices[i]) * n).sum(1) + margin
+            disp = -n * np.maximum(depth, margin * 0.5)[:, None]
+            step = _spread(pos, bad, disp, radius)
+            pos += step
+            total = max(total, float(np.linalg.norm(disp, axis=1).max()))
+        return pos, total, int(self.outside(pos).sum())
 
 
 def clamp_heightfield(pos, obstacle, axis, sign, margin=0.0015, window=0.008, reach=0.06):

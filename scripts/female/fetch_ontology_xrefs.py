@@ -36,6 +36,9 @@ FMA_LABELS = [
     'glans of clitoris', 'bulb of vestibule of vagina', 'right bulb of vestibule of vagina',
     'left bulb of vestibule of vagina', 'neck of uterus', 'external urethral orifice of female',
     'superficial transverse perineal muscle', 'female urethra', 'urethra',
+    'left ovarian artery', 'right ovarian artery', 'left ovarian vein', 'right ovarian vein', 'ovarian artery', 'ovarian vein',
+    'left greater vestibular gland', 'right greater vestibular gland', 'greater vestibular gland',
+    'left paraurethral gland', 'right paraurethral gland', 'paraurethral gland', 'prepuce of clitoris',
 ]
 
 

@@ -45,6 +45,8 @@ def main():
         run('node', 'scripts/optimize-anatomy.mjs', 'female/atlas.json')
         run('node', 'scripts/compress-models.mjs', 'female/atlas.json')
         run('node', 'scripts/validate-atlas.mjs', 'female/atlas.json')
+        run(sys.executable, '-I', 'scripts/female/measure.py')        # gate A -> work/female/measurements.json
+        run(sys.executable, '-I', 'scripts/female/gate_checks.py')    # gate B -> work/female/gate_b.json
 
 
 if __name__ == '__main__':

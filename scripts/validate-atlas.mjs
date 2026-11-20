@@ -6,12 +6,16 @@ const targets=process.argv[2]?[process.argv[2]]:['atlas.json','female/atlas.json
 const MALE_ONLY=/penis|testis|testicular|scrot|prostat|seminal|deferent|epididym|spermatic|cremaster|ejaculat|bulbourethral/i;
 // Step 2b checklist: every item must be present in the female model (found, adapted or generated).
 const FEMALE_REQUIRED={
- 'hip bones':/^(left|right) hip bone$/i,sacrum:/^sacrum$/i,coccyx:/coccyx/i,uterus:/body of uterus|fundus of uterus/i,cervix:/cervix/i,
+ 'hip bones':/^(left|right) (ilium|ischium|pubis)$/i,sacrum:/sacrum/i,coccyx:/coccyx/i,uterus:/body of uterus|fundus of uterus/i,cervix:/cervix/i,
  'uterine tubes':/uterine tube/i,fimbriae:/fimbria/i,ovaries:/^(left|right) ovary$/i,'ovarian ligament':/ovarian ligament/i,
  'round ligament':/round ligament/i,'broad ligament':/broad ligament/i,vagina:/^vagina$/i,'labia majora':/labium majus/i,
  'labia minora':/labium minus/i,clitoris:/clitoris/i,vestibule:/vestibule of vagina/i,'female urethra':/female urethra/i,
  'mammary glands':/mammary lobe|mammary gland/i,'breast fat':/adipose tissue of .*mammary/i,
  'pelvic floor muscles':/pubococcygeus|iliococcygeus|puborectalis/i,'female perineal muscles':/bulbospongiosus|ischiocavernosus/i,
+ 'lungs':/bronchopulmonary segment/i,'ovarian arteries':/ovarian artery/i,'ovarian veins':/ovarian vein/i,
+ "Bartholin's glands":/greater vestibular/i,"Skene's glands":/paraurethral/i,'perineal body':/perineal body/i,
+ 'mons pubis':/mons pubis/i,'prepuce of clitoris':/prepuce of clitoris/i,'vestibular bulbs':/bulb of vestibule/i,
+ 'gluteofemoral fat':/subcutaneous fat of hips/i,
 };
 for(const filename of targets){
  const path=new URL(filename,models);
@@ -28,7 +32,11 @@ for(const filename of targets){
  let extra='';
  if(female){
   // Metadata: every part names its source and accuracy; generated parts are schematic.
-  for(const p of atlas.parts){assert.ok(atlas.sources[p.source],`${p.id}: unknown source ${p.source}`);assert.ok(['source','warped','schematic'].includes(p.accuracy),`${p.id}: accuracy`);if(p.source==='generated')assert.equal(p.accuracy,'schematic',`${p.id}: generated parts must be schematic`);if(p.accuracy==='schematic')assert.ok(p.note,`${p.id}: schematic parts need a note`);}
+  // Every structure is labelled scan-derived / warped / generated, consistently with its source.
+  const expect={hra:'scan-derived',bp3d:'warped',generated:'generated'};
+  for(const p of atlas.parts){assert.ok(atlas.sources[p.source],`${p.id}: unknown source ${p.source}`);assert.equal(p.accuracy,expect[p.source],`${p.id}: accuracy`);if(p.accuracy!=='scan-derived')assert.ok(p.note,`${p.id}: needs a provenance note`);}
+  const skin=atlas.parts.filter(p=>p.name==='Skin');assert.equal(skin.length,1);assert.equal(skin[0].source,'hra','the body surface must be the scan-derived female skin');
+  for(const name of ['Hip bone','Left hip bone','Right hip bone'])if(atlas.concepts.some(c=>c.name===name))assert.ok(atlas.concepts.find(c=>c.name===name).elements.every(id=>id.startsWith('VH_F_')),`${name} must be the real HRA pelvis`);
   const male=atlas.parts.filter(p=>MALE_ONLY.test(p.name));assert.deepEqual(male.map(p=>p.name),[],'male-only structures in the female model');
   for(const c of atlas.concepts)assert.ok(!MALE_ONLY.test(c.name),`male-only concept ${c.name}`);
   const missing=Object.entries(FEMALE_REQUIRED).filter(([,re])=>!atlas.parts.some(p=>re.test(p.name)));assert.deepEqual(missing.map(([k])=>k),[],'female checklist');

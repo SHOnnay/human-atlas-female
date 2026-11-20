@@ -36,7 +36,7 @@ def skin_path(start, end, lateral, depth, count=9, bow=0.0):
 
 # Labia majora: rounded fat-filled folds either side of the pudendal cleft (A → P).
 for side, s in (('left', 1), ('right', -1)):
-    path = bc.bezier(skin_path(A, P, s * 0.016, 0.0035, bow=0.25), 6)
+    path = bc.bezier(skin_path(A, P, s * 0.014, -0.0115, bow=0.25), 6)
     r = lambda t: 0.0035 + 0.0062 * math.sin(math.pi * min(1, max(0, t))) ** 0.55
     obj = bc.tube(f'labium_majus_{side}', path, r, segments=18, scale_lr=0.62, lr_axis=lr)
     bc.polish(obj, voxel=0.0011, smooth=6, ratio=0.4)
@@ -47,7 +47,7 @@ G = bc.V(lm['glans_site'])
 for side, s in (('left', 1), ('right', -1)):
     start = G - ap * 0.004 + lr * s * 0.004
     end = O - ap * 0.013 + lr * s * 0.006
-    path = bc.bezier(skin_path(start, end, s * 0.0045, 0.0018, count=7, bow=0.6), 6)
+    path = bc.bezier(skin_path(start, end, s * 0.0045, -0.0068, count=7, bow=0.6), 6)
     r = lambda t: 0.0012 + 0.0042 * math.sin(math.pi * min(1, max(0, t))) ** 0.7
     obj = bc.tube(f'labium_minus_{side}', path, r, segments=14, scale_lr=0.38, lr_axis=lr)
     bc.polish(obj, voxel=0.0008, smooth=4, ratio=0.45)
@@ -78,7 +78,7 @@ for i in range(R):
                 continue
         bm.faces.new(quad if i else quad)
 for v in bm.verts:
-    v.co = bc.on_skin(skin, v.co, n, -0.0012)
+    v.co = bc.on_skin(skin, v.co, n, -0.010)
 bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
 loose = [v for v in bm.verts if not v.link_faces]
 bmesh.ops.delete(bm, geom=loose, context='VERTS')
