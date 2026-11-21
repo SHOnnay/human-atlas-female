@@ -55,6 +55,8 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
     shader.fragmentShader='varying float partVisible; varying float partSelected;\n'+shader.fragmentShader;
     shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif (partVisible < 0.5) discard;');
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.85, 0.78), partSelected * 0.75);');
+    // Skin: soft rim (Fresnel) light so the translucent silhouette reads at low opacity.
+    if(system==='integumentary')shader.fragmentShader=shader.fragmentShader.replace('#include <dithering_fragment>','float skinRim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.2);\ngl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0, 0.93, 0.88), skinRim * 0.55);\ngl_FragColor.a = clamp(gl_FragColor.a + skinRim * 0.35, 0.0, 1.0);\n#include <dithering_fragment>');
    };materials.push(m);return m;
   };
   const mats=new Map(SYSTEMS.map(s=>[s.id,materialFor(s.id)]));
@@ -71,7 +73,7 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
     g.setAttribute('partIndex',new T.BufferAttribute(new Float32Array(p.vertexCount).fill(i),1));
     const list=groups.get(p.system)??[];list.push(g);groups.set(p.system,list);
    });
-   groups.forEach((gs,system)=>{const geometry=mergeGeometries(gs,false);if(!geometry)throw new Error('Could not assemble anatomy geometry.');geometries.push(geometry);const mesh=new T.Mesh(geometry,mats.get(system as never));mesh.frustumCulled=false;scene.add(mesh);});
+   groups.forEach((gs,system)=>{const geometry=mergeGeometries(gs,false);if(!geometry)throw new Error('Could not assemble anatomy geometry.');geometries.push(geometry);const mesh=new T.Mesh(geometry,mats.get(system as never));mesh.frustumCulled=false;mesh.renderOrder=system==='integumentary'?10:system==='adipose'?5:0;scene.add(mesh);});
    lastState=null;loaded++;onProgress(Math.round(loaded/atlas.chunks.length*100));dirty=true;
   };
   (async()=>{try{let cursor=0;await Promise.all(Array.from({length:3},async()=>{while(cursor<atlas.chunks.length){const i=cursor++;await loadChunk(i);}}));if(!disposed){ready=true;dirty=true;}}catch(e){if(!disposed)onError(e instanceof Error?e.message:'Could not load the anatomy.');}})();
@@ -99,13 +101,14 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
   const clock=new T.Clock();let lastExtent=-1,hold=false;
   const animate=()=>{
    if(disposed)return;frame=requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05),s=latest.current;
-   const changed=lastState?.visible!==s.visible||lastState?.selected!==s.selected||lastState?.isolate!==s.isolate;
+   const changed=lastState?.visible!==s.visible||lastState?.selected!==s.selected||lastState?.isolate!==s.isolate||lastState?.skinOpacity!==s.skinOpacity;
    const moving=Math.abs(amount-s.explode)>.0001;
    if(moving){amount=T.MathUtils.damp(amount,s.explode,8,dt);dirty=true;}
    if(!hold&&(changed||moving||lastExtent<0)){
     const visible=new Set(s.visible),selection=new Set(s.selected);
+    const skinMat=mats.get('integumentary');if(skinMat){skinMat.opacity=s.skinOpacity??.2;skinMat.depthWrite=false;}
     // Breast fat turns semi-transparent while a structure inside it (gland, duct, ligament) is selected.
-    const fat=mats.get('adipose');if(fat){const see=s.selected.length>0&&!atlas.parts.some(p=>selection.has(p.id)&&p.system==='adipose');fat.opacity=see?.22:1;fat.depthWrite=!see;}
+    const fat=mats.get('adipose');if(fat){const see=s.selected.length>0&&!atlas.parts.some(p=>selection.has(p.id)&&p.system==='adipose');fat.opacity=see?.2:.45;fat.depthWrite=false;}
     const visibleParts=atlas.parts.filter(p=>s.isolate?selection.has(p.id):visible.has(p.system)||selection.has(p.id));
     const nextLayoutKey=visibleParts.map(p=>p.id).join(',')+':'+camera.aspect.toFixed(3);
     if(nextLayoutKey!==layoutKey){const layout=createExplosionLayout(visibleParts,camera.aspect);packingWidth=layout.width;packingHeight=layout.height;atlas.parts.forEach((p,i)=>{const cell=layout.cells.get(p.id);offsets[i]=cell?new T.Vector3(cell.x,cell.y+.85,0):centers[i].clone();});layoutKey=nextLayoutKey;if(amount>.05&&!s.isolate)fit(s.view,Math.max(0,(amount-.3)/.7));}
