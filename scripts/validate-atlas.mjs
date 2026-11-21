@@ -10,7 +10,7 @@ const FEMALE_REQUIRED={
  'uterine tubes':/uterine tube/i,fimbriae:/fimbria/i,ovaries:/^(left|right) ovary$/i,'ovarian ligament':/ovarian ligament/i,
  'round ligament':/round ligament/i,'broad ligament':/broad ligament/i,vagina:/^vagina$/i,'labia majora':/labium majus/i,
  'labia minora':/labium minus/i,clitoris:/clitoris/i,vestibule:/vestibule of vagina/i,'female urethra':/female urethra/i,
- 'mammary glands':/mammary lobe|mammary gland/i,'breast fat':/adipose tissue of .*mammary/i,
+ 'mammary glands':/mammary lobe|mammary gland/i,'breast fat':/breast adipose tissue|adipose tissue of .*mammary/i,
  'pelvic floor muscles':/pubococcygeus|iliococcygeus|puborectalis/i,'female perineal muscles':/bulbospongiosus|ischiocavernosus/i,
  'lungs':/bronchopulmonary segment/i,'ovarian arteries':/ovarian artery/i,'ovarian veins':/ovarian vein/i,
  "Bartholin's glands":/greater vestibular/i,"Skene's glands":/paraurethral/i,'perineal body':/perineal body/i,
@@ -33,9 +33,13 @@ for(const filename of targets){
  if(female){
   // Metadata: every part names its source and accuracy; generated parts are schematic.
   // Every structure is labelled scan-derived / warped / generated, consistently with its source.
-  const expect={hra:'scan-derived',bp3d:'warped',generated:'generated'};
+  const expect={hra:'scan-derived',bp3d:'warped',generated:'generated',mpfb:'generated'};
   for(const p of atlas.parts){assert.ok(atlas.sources[p.source],`${p.id}: unknown source ${p.source}`);assert.equal(p.accuracy,expect[p.source],`${p.id}: accuracy`);if(p.accuracy!=='scan-derived')assert.ok(p.note,`${p.id}: needs a provenance note`);}
-  const skin=atlas.parts.filter(p=>p.name==='Skin');assert.equal(skin.length,1);assert.equal(skin[0].source,'hra','the body surface must be the scan-derived female skin');
+  const skin=atlas.parts.filter(p=>p.name==='Skin');assert.equal(skin.length,1);assert.equal(skin[0].source,'mpfb','the body surface must be the MPFB2 average female (v3)');
+  // Breast adipose is its own system; the clitoris and vestibular bulbs are erectile tissue.
+  assert.ok(atlas.parts.filter(p=>/breast adipose/i.test(p.name)).every(p=>p.system==='adipose')&&atlas.parts.some(p=>p.system==='adipose'),'breast adipose system');
+  assert.ok(atlas.parts.filter(p=>/clitoris|bulb of vestibule/i.test(p.name)&&!/prepuce/i.test(p.name)).every(p=>p.system==='erectile'),'erectile tissue system');
+  assert.ok(atlas.parts.filter(p=>/urinary bladder/i.test(p.name)).every(p=>p.system==='urinary'),'bladder in the urinary system');
   for(const name of ['Hip bone','Left hip bone','Right hip bone'])if(atlas.concepts.some(c=>c.name===name))assert.ok(atlas.concepts.find(c=>c.name===name).elements.every(id=>id.startsWith('VH_F_')),`${name} must be the real HRA pelvis`);
   const male=atlas.parts.filter(p=>MALE_ONLY.test(p.name));assert.deepEqual(male.map(p=>p.name),[],'male-only structures in the female model');
   for(const c of atlas.concepts)assert.ok(!MALE_ONLY.test(c.name),`male-only concept ${c.name}`);

@@ -1,4 +1,55 @@
-# Verification — female anatomy model (version 2)
+# Verification — female anatomy model
+
+## Version 3 (polish milestone), 2026-11-21
+
+Produced by `python scripts/build-anatomy.py --sex female`, which builds the model and runs the validators and gates A and B. Every number comes from `work/female/measurements.json`, `gate_b.json` and `report.json`.
+
+### A. Composites
+- **Blender, same camera:** `docs/screenshots/compare/` (41 images) — all-systems, skin-only and skeleton-only (front, side, back, oblique); hand (palm, dorsum, front, back); breast with fat on and off (front, side); vulva with the skin at 40% (front, below, oblique); uterus isolated; head skeleton; pelvis and perineum.
+- **Web app (B):** `docs/screenshots/webapp/` (41 images) — the same categories, views and part sets, captured from `npm run dev` in headless Chromium through the `?debug` capture API.
+
+### C. Measurements (female; cited ranges in `scripts/female/measure.py`)
+
+| Measure | Female | Range | Result |
+|---|---|---|---|
+| Stature | 163.9 cm | 150–178 | pass |
+| BMI | 22.5 | 21–24 (target 22–23) | pass |
+| Biacromial / hip ratio | 33.4 cm / 0.9 | 32–41 / 0.85–1.10 | pass |
+| Waist circumference | 71.4 cm | 62–110 | pass |
+| Inlet transverse / AP | 12.5 / 10.6 cm | 11.5–14.5 / 10–12.5 | pass |
+| Q-angle | 12.0° (L 10.2°, R 13.8°); knees 12.0 cm apart, femoral obliquity 5.1° (male 10.7°) | 11–21 (brief: ~15–17) | pass, below the brief's 15–17° target |
+| Subpubic angle | 118° | 80–100 | **fail**: the real VHF pelvis, not altered |
+| Clitoral length (glans + body + crus) | 9.5 cm | 9–11 (O'Connell 2005) | pass |
+| Crus length | 5.3 / 6.1 cm | 5–9 | pass |
+| Uterus L × W × AP | 6.3 × 4.3 × 2.7 cm | 6.5–9 × 4–6 × 2–4 | **length fail**: the real VHF uterus, rigid, no scale |
+| Uterus | anteverted 67° from vertical; cervix in the vaginal vault | — | pass; anteflexion is only 1° (the VHF uterus is straight) |
+| Nipple level | 1.232 m, between the 4th (1.265) and 5th (1.206) ribs | 4th intercostal space | pass |
+| Breast footprint | ribs 2–6 (1.317–1.171 m); medial edge 3.3 cm, lateral to the sternal edge at 2.5 cm; lateral edge 13.7 cm (mid-axillary line 19.9 cm) | ribs 2–6, sternal edge → mid-axillary | pass. The lateral edge stops short of the mid-axillary line |
+| Ureters | never cross the midline (closest 17 mm and 20 mm) | lateral | pass |
+| Hand and foot bone aspect ratios | 75 of 76 within 3 %; right 5th metatarsal 3.4 % (after simplification) | ≤ 3 % | 1 marginal |
+
+### D. Containment and mesh quality
+- **Floating parts:** 0.
+- **Protruding parts:** 25 of 2,325 parts (22 warped, 3 generated) still have a few vertices outside the skin after simplification. The fix (3 mm margin, rigid group moves) removed the lung protrusions; these residuals remain.
+- **Stretch gate (no edge over 2× its source):** not met. 12,953 of 2,169,868 warped triangles (0.6 %) exceed 2×, mostly in the pharynx and palate. They come from fitting the rigid head group inside the smaller MPFB face. The body warp itself now stretches 130 parts, down from 225 before regularization.
+- **Validators:** `validate-atlas.mjs` passes for the male and female packages, as does `tsc --noEmit`. The male package files are unchanged (`git status` shows no changes under `public/models` outside `female/`).
+
+### E. Independent review (v3, round 1) — **2/10 pass**
+A fresh subagent was given only the 82 screenshots and the 10-issue list. Verdicts:
+1. Pose — PASS
+2. Hands — FAIL (carpals bunched, fingers thin and splayed)
+3. Breasts — FAIL (angular fat, hard edges, V-notch between the breasts)
+4. Vulva — FAIL (structures hang below the vulva skin; erectile colour too close to the uterus)
+5. Uterus — FAIL (round pink organ over the bladder; elongated uterus)
+6. Neck — FAIL (shards above the clavicles)
+7. Limb mesh — FAIL (smeared forearm sheet, fragments beside the femurs)
+8. Knees — PASS
+9. Body — FAIL (chest shape, wide deltoids)
+10. Ureters PASS but face — FAIL (broken facial skeleton, jumbled teeth)
+
+**The acceptance loop is not complete: 8 issues still fail.** They are recorded here unmodified.
+
+# Version 2
 
 Run on 2026-11-20 with Windows 10, Node 24.11, Python 3.12, Blender 4.2.23 LTS, and Playwright with headless Chromium (software WebGL).
 

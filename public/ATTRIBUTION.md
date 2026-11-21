@@ -19,7 +19,18 @@ BodyParts3D represents an adult male reference anatomy based on TARO MRI and ana
 
 Every mesh records its source (`source`) and provenance (`accuracy`: `scan-derived`, `warped`, or `generated`) in `models/female/atlas.json`. The viewer shows the provenance as a badge on every structure.
 
-### 1. Human Reference Atlas — the female body (scan-derived)
+### 0. MPFB2 / MakeHuman — the body surface (generated, parametric)
+
+The female body surface (skin) is an average adult female generated with **MPFB2**, the MakeHuman add-on for Blender (MakeHuman Community, https://static.makehumancommunity.org/mpfb.html), and posed with its "default" rig into the reference pose. Its parameters are female, 25 years, 1.63 m, BMI 22.5 and cup size 0.5. The base mesh, targets and rig are MakeHuman assets released under **CC0 1.0** (public domain dedication). The MPFB2 add-on itself (GPL-3) was used only as a tool; no add-on code is distributed.
+
+Two helper bodies with the same topology were generated only to compute the warp: an MPFB male fitted to BodyParts3D, and the same female with a flat chest. They are not distributed.
+
+Adaptations:
+- a schematic pudendal cleft
+- flattening of the inner-thigh contact
+- the breast mound moved along the chest wall so the nipple lies at the 4th intercostal space
+
+### 1. Human Reference Atlas — pelvis, pelvic organs, lungs, breast glands (scan-derived)
 
 Kristen Browne and Heidi Schlehlein, Human Reference Atlas / HuBMAP, *3D Reference Organ Set for Female v1.5* (2023), derived from the Visible Human Female. Licensed CC BY 4.0.
 
@@ -29,30 +40,34 @@ Kristen Browne and Heidi Schlehlein, Human Reference Atlas / HuBMAP, *3D Referen
 - License: https://creativecommons.org/licenses/by/4.0/
 
 **Used:**
-- the skin (the whole body surface)
 - the pelvis (ilia, ischia, pubes, sacrum) and the coccyx
 - the uterus, cervix and uterine tubes
 - the ovaries and the ligaments of the uterus and ovaries
 - the vagina and the urinary bladder
 - the uterine arteries and veins
-- the breasts: mammary lobes, lactiferous ducts and sinuses, breast adipose body, suspensory ligaments, nipples and areolae
+- the breasts: mammary lobes, lactiferous ducts and sinuses, suspensory ligaments (the v3 breast fat, areolae and nipples are generated)
 - the lungs: all bronchopulmonary segments and hila
 
+The HRA skin was used up to version 2 and is not distributed from version 3.
+
 **Adaptations:**
-- Translated so the feet rest on the stage; scale and mutual positions are unchanged.
+- **Bony pelvis:** one similarity (rotation, translation, uniform scale) into the body's hip joints.
+- **Pelvic organs:** one rigid block (rotation and translation, no scale).
+- **Lungs and breast glands:** shape-preserving similarities.
 - Coincident vertices welded.
 - Cracks between uterine pieces closed by projecting near-coincident vertices (≤ 2.5 mm).
-- Breasts moved forward by the measured overlap with the chest wall.
-- Lactiferous ducts and sinuses kept 1.5 mm inside the skin.
+- Lactiferous ducts and sinuses kept inside the generated breast fat.
 - Thin uterine ligaments kept in front of the sacrum and medial to the hip bones.
 - Simplified with a 0.2% per-structure error bound; normals quantized.
 - Left/right labels of the round ligaments corrected (they are swapped in the source).
 
 ### 2. BodyParts3D 4.0 — every other structure (warped approximation)
 
-BodyParts3D, © DBCLS, CC BY 4.0 (as above). All non-female-specific structures are carried into the HRA female body:
-- **Torso, head, neck and legs:** a landmark-based thin-plate-spline warp.
-- **Arms:** as articulated rigid segments (upper arm, forearm, hand).
+BodyParts3D, © DBCLS, CC BY 4.0 (as above). All non-female-specific structures are carried into the female body:
+- **Soft tissue:** a thin-plate-spline warp built from dense same-topology MPFB correspondences.
+- **Long bones, hand and foot bones, and the head:** rigid transforms with uniform scale (no spline).
+- **Hand and foot soft tissue:** linear blend skinning.
+- **Spine and sternum:** pinned to the mid-sagittal plane.
 - **Make-room adjustments:** bowel, vessels, nerves and pelvic floor muscles are locally displaced around the real female organs and pelvis.
 
 Removed in the female model:
@@ -74,12 +89,13 @@ Created with the scripts in `scripts/female/` (Blender 4.2 and Python) and relea
 - female ischiocavernosus and bulbospongiosus
 - ovarian arteries and veins
 - gluteofemoral subcutaneous fat
+- breast adipose bodies, areolae and nipples
 
 **They are schematic, not scan-derived.** Dimensions come from published ranges (Lloyd et al. 2005; O'Connell et al. 1998 and 2005; Gray's Anatomy 42nd ed.), and positions from the real neighbouring structures. See `DATA_SOURCES.md`.
 
 No CC BY-SA, non-commercial, SMPL or paid data is included, so no share-alike terms apply.
 
-This interface is educational and is not a clinical, diagnostic or surgical tool. The female model is a composite: one real woman's body (the Visible Human Female, aged 59) combined with reshaped male anatomy and schematic structures. It does not represent every body or variation.
+This interface is educational and is not a clinical, diagnostic or surgical tool. The female model is a composite: a parametric average female body (MPFB2), one real woman's pelvis and organs (the Visible Human Female, aged 59), reshaped male anatomy and schematic structures. It does not represent every body or variation.
 
 ## Historical assets
 

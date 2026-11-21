@@ -5,7 +5,8 @@
       (convert-anatomy.py → optimize-anatomy.mjs → compress-models.mjs atlas.json)
 
   python scripts/build-anatomy.py --sex female [--hra GLB] [--blender PATH]
-      male package + HRA female v1.5 + Blender-generated structures
+      male package + MPFB2 average female (Blender + MPFB2 extension; generated once into
+      work/female/mpfb/) + HRA female v1.5 + Blender-generated structures
       → public/models/female/atlas.json + female-N.bin(.gz)
       (female/build_female.py → optimize-anatomy.mjs female/atlas.json → compress-models.mjs female/atlas.json)
 

@@ -1,4 +1,4 @@
-export type SystemId = 'skeletal'|'muscular'|'arterial'|'venous'|'nervous'|'digestive'|'respiratory'|'urinary'|'reproductive'|'lymphatic'|'endocrine'|'integumentary'|'connective'|'sensory'|'cardiac';
+export type SystemId = 'skeletal'|'muscular'|'arterial'|'venous'|'nervous'|'digestive'|'respiratory'|'urinary'|'reproductive'|'lymphatic'|'endocrine'|'integumentary'|'connective'|'sensory'|'cardiac'|'adipose'|'erectile';
 export const SYSTEMS: {id:SystemId;name:string;color:string;description:string}[] = [
  {id:'skeletal',name:'Skeleton',color:'#e2d9ba',description:'Bones form the supporting framework of the body, protect organs, and provide attachment points for muscles. Their internal tissue also stores minerals and produces blood cells.'},
  {id:'muscular',name:'Muscles',color:'#a85b50',description:'Skeletal muscles generate movement by pulling on their attachments. Together with tendons, they move joints, stabilize posture, and produce heat.'},
@@ -15,6 +15,8 @@ export const SYSTEMS: {id:SystemId;name:string;color:string;description:string}[
  {id:'reproductive',name:'Reproductive',color:'#bda098',description:'The male reproductive structures represented here contribute to sperm production, maturation, transport, and the production of sex hormones.'},
  {id:'integumentary',name:'Body surface',color:'#ba9b7d',description:'The body surface provides an outer anatomical reference. The integumentary system forms a protective barrier and contributes to sensation and temperature regulation.'},
  {id:'connective',name:'Connective tissue',color:'#aec3bb',description:'Cartilage, ligaments, and other connective tissues support, connect, and separate structures. Their roles include stabilizing joints and distributing mechanical loads.'},
+ {id:'adipose',name:'Adipose tissue',color:'#eedc9a',description:'Fat (adipose tissue) stores energy, insulates, and shapes body contour. In the breast it surrounds and supports the glandular lobes and ducts.'},
+ {id:'erectile',name:'Erectile tissue',color:'#8e4f7a',description:'Erectile tissue (the clitoris and the vestibular bulbs) consists of vascular spaces that fill with blood during arousal.'},
 ];
 /** How faithfully a part's geometry reflects its source (female package; male parts omit it). */
 export type Accuracy = 'scan-derived'|'warped'|'generated';
@@ -34,7 +36,7 @@ const FEMALE_REPRODUCTIVE='The female reproductive structures represented here i
 export function sourceFor(atlas:Atlas|null,part:Part|undefined){const key=part?.source;const s=key?atlas?.sources?.[key]:undefined;return s??{name:'BodyParts3D 4.0',author:'DBCLS',license:'CC BY 4.0',url:'https://lifesciencedb.jp/bp3d/'};}
 export type View = 'three-quarter'|'front'|'back'|'side';
 export interface SceneState {inspectorOpen?:boolean;explode:number;visible:SystemId[];selected:string[];isolate:boolean;view:View;rotate:boolean;reset:number}
-export const DEFAULT_VISIBLE:SystemId[] = ['cardiac','sensory','skeletal','muscular','arterial','venous','nervous','respiratory','digestive','urinary','lymphatic','endocrine','reproductive','connective'];
+export const DEFAULT_VISIBLE:SystemId[] = ['cardiac','sensory','skeletal','muscular','arterial','venous','nervous','respiratory','digestive','urinary','lymphatic','endocrine','reproductive','connective','adipose','erectile'];
 export const EXPLANATIONS:Record<string,string> = {
  'uterus':'A hollow muscular organ in the pelvis. Its lining changes through the menstrual cycle and can support implantation and development during pregnancy.',
  'uterine cervix':'The lower, narrow part of the uterus. Its canal connects the uterine cavity with the vagina.',

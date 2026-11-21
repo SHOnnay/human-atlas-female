@@ -24,8 +24,10 @@ def find_blender():
     return found
 
 
-def run(script, args, blender=None, quiet=True):
-    cmd = [blender or find_blender(), '--background', '--factory-startup', '--python', str(script), '--', *map(str, args)]
+def run(script, args, blender=None, quiet=True, extensions=False):
+    """extensions=True keeps the user's installed extensions (needed for MPFB2)."""
+    base = [blender or find_blender(), '--background'] + ([] if extensions else ['--factory-startup'])
+    cmd = base + ['--python', str(script), '--', *map(str, args)]
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0 or 'Traceback' in res.stdout + res.stderr:
         sys.stderr.write(res.stdout[-4000:] + res.stderr[-4000:])

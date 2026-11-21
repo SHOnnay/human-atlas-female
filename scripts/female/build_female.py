@@ -29,8 +29,155 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
+import body_target as bt  # noqa: E402
 import body_warp as bw  # noqa: E402
 import meshlib as ml  # noqa: E402
+
+POSE = [None, None]   # (male pose json, MPFB rig joints) once retargeted
+STATE = {}
+
+
+MIDLINE = re.compile(r'vertebra|intervertebral|sternum|manubrium|xiphoid|body of sternum|sacrum|coccyx|axis|atlas', re.I)
+
+
+def pin_midline(M, report, x0=0.0):
+    """Remove any coronal bend: the lateral offset dx(y) of the vertebral bodies / sternum centroids
+    from the mid-sagittal plane (x = x0; the MPFB body is symmetric about it) is interpolated along y
+    and subtracted from every vertex, weighted by closeness to the midline (Gaussian, 7 cm) so the
+    ribs, linea alba and paraspinal tissue follow without tearing."""
+    pts = [(m['pos'][:, 1].mean(), m['pos'][:, 0].mean()) for m in M.values()
+           if MIDLINE.search(m['name']) and not re.search(r'left|right', m['name'], re.I) and m['system'] == 'skeletal']
+    pts = np.array(sorted(pts))
+    if len(pts) < 4:
+        return
+    ys, dx = pts[:, 0], pts[:, 1] - x0
+    # Smooth the offset profile (running mean over 5) so single bones do not create kinks.
+    k = np.ones(5) / 5
+    dxs = np.convolve(np.pad(dx, 2, mode='edge'), k, mode='valid')
+    before = float(np.abs(dx).max() * 1000)
+    for m in M.values():
+        p = m['pos']
+        if p[:, 1].max() < ys.min() - 0.05 or p[:, 1].min() > ys.max() + 0.05:
+            continue
+        off = np.interp(p[:, 1], ys, dxs)
+        mid = MIDLINE.search(m['name']) and not re.search(r'left|right', m['name'], re.I)
+        # Midline bones move by their own full offset (rigid); everything else by a smooth falloff.
+        if mid and m['system'] == 'skeletal':
+            off = np.full(len(p), p[:, 0].mean() - x0); w = np.ones(len(p))
+        else:
+            w = np.exp(-((p[:, 0] - x0) / 0.07) ** 2)
+        m['pos'] = p - np.c_[off * w, np.zeros(len(p)), np.zeros(len(p))]
+    after = [m['pos'][:, 0].mean() - x0 for m in M.values()
+             if MIDLINE.search(m['name']) and not re.search(r'left|right', m['name'], re.I) and m['system'] == 'skeletal']
+    report['midline'] = {'max_offset_before_mm': before, 'max_offset_after_mm': float(np.abs(after).max() * 1000), 'bones': int(len(pts))}
+    log('midline', report['midline'])
+
+
+def edge_ratios(src, dst, idx):
+    t = idx.reshape(-1, 3)
+    e = lambda p: np.stack([np.linalg.norm(p[t[:, a]] - p[t[:, b]], axis=1) for a, b in ((0, 1), (1, 2), (2, 0))], 1)
+    return e(dst) / np.maximum(e(src), 1e-7)
+
+
+def relax_corrections(M, male, shell, report, limit=2.0, rounds=40):
+    """Containment and make-room corrections are local pushes; where one stretched a triangle past
+    `limit` x its source, diffuse that part's correction displacement (pos - warp-only pos) over the
+    mesh until no triangle exceeds the limit (or the correction is spread out). Parts the warp itself
+    already stretched are left for the report."""
+    from scipy.sparse import coo_matrix
+    fixed, left = 0, 0
+    for pid, m in M.items():
+        if 'warp_pos' not in m:
+            continue
+        src = male[pid]['pos']
+        if not (edge_ratios(src, m['pos'], m['idx']) > limit).any():
+            continue
+        if (edge_ratios(src, m['warp_pos'], m['idx']) > limit).any():
+            left += 1
+            continue
+        t = m['idx'].reshape(-1, 3)
+        n = len(m['pos'])
+        r = np.r_[t[:, 0], t[:, 1], t[:, 2], t[:, 1], t[:, 2], t[:, 0]]
+        c = np.r_[t[:, 1], t[:, 2], t[:, 0], t[:, 0], t[:, 1], t[:, 2]]
+        A = coo_matrix((np.ones(len(r)), (r, c)), shape=(n, n)).tocsr()
+        A.data[:] = 1.0
+        deg = np.asarray(A.sum(1)).ravel()
+        D = m['pos'] - m['warp_pos']
+        for _ in range(rounds):
+            D = 0.5 * D + 0.5 * (A @ D) / np.maximum(deg, 1)[:, None]
+            pos = m['warp_pos'] + D
+            if not (edge_ratios(src, pos, m['idx']) > limit).any():
+                break
+        m['pos'] = pos
+        fixed += 1
+    report['stretch_relax'] = {'parts_relaxed': fixed, 'parts_stretched_by_warp': left}
+    log('stretch relax', report['stretch_relax'])
+
+
+def stretch_report(M, male, report, limit=2.0):
+    """Gate: no warped triangle edge longer than `limit` x its source (BodyParts3D) length."""
+    bad = {}
+    total = 0
+    by_warp = 0
+    for pid, m in M.items():
+        r = edge_ratios(male[pid]['pos'], m['pos'], m['idx']).max(1)
+        total += len(r)
+        k = int((r > limit).sum())
+        if k:
+            w = int((edge_ratios(male[pid]['pos'], m['warp_pos'], m['idx']).max(1) > limit).sum()) if 'warp_pos' in m else -1
+            by_warp += max(w, 0)
+            bad[pid] = {'name': m['name'], 'triangles_over': k, 'max_ratio': float(r.max()), 'over_after_warp_only': w}
+    report['stretch'] = {'limit': limit, 'triangles': total, 'triangles_over': int(sum(b['triangles_over'] for b in bad.values())),
+                         'triangles_over_after_warp_only': by_warp,
+                         'parts': dict(sorted(bad.items(), key=lambda kv: -kv[1]['triangles_over'])[:40])}
+    log('stretch', report['stretch']['triangles_over'], 'of', total, 'triangles over', limit, 'x;', len(bad), 'parts')
+
+
+def rigid_head(M, male, report):
+    """The skull is rigid: everything above the neck gets ONE similarity (rotation + translation +
+    uniform scale) fitted on the dense head/face skin pairs, blended into the body warp between the
+    3rd cervical vertebra and 5 cm above it. The jaw keeps its male (closed) relation to the skull."""
+    src, dst = STATE['dense']
+    J = POSE[0]['joints']
+    y0 = J['C3'][1]
+    head = src[:, 1] > y0 + 0.05
+    # Eye anchors (weight 40 each): male eyeball centres (sclera) -> MPFB eye joints, so the eyes sit
+    # in the parametric face's palpebral openings rather than being pushed in by the skin.
+    eyes_m = [male[pid]['pos'].mean(0) for pid, m in M.items() if m['name'] in ('Left sclera', 'Right sclera')]
+    names_eye = [m['name'] for pid, m in M.items() if m['name'] in ('Left sclera', 'Right sclera')]
+    eyes_f = [POSE[1]['eye.L' if n.startswith('Left') else 'eye.R']['head'] for n in names_eye]
+    S = np.vstack([src[head]] + [e[None] for e in eyes_m]); D = np.vstack([dst[head]] + [np.asarray(e)[None] for e in eyes_f])
+    W = np.r_[np.ones(int(head.sum())), np.full(len(eyes_m), 40.0)]
+    s, R, t = ml.umeyama(S, D, W)
+    resid = np.linalg.norm(ml.apply_similarity(src[head], s, R, t) - dst[head], axis=1)
+    # The mandible (and teeth, tongue, floor of mouth) sit low; any part whose centroid lies in the
+    # box of the male cranium + mandible (+5 mm) belongs to the rigid head as well.
+    skull = np.vstack([male[pid]['pos'] for pid, m in M.items()
+                       if m['system'] == 'skeletal' and male[pid]['pos'][:, 1].mean() > y0 + 0.04] +
+                      [male[pid]['pos'] for pid, m in M.items() if m['name'] == 'Mandible'])
+    box_lo, box_hi = skull.min(0) - 0.005, skull.max(0) + 0.005
+    STATE['head_parts'] = []
+    STATE['head_all'] = []
+    n = 0
+    for pid, m in M.items():
+        p = male[pid]['pos']
+        c = p.mean(0)
+        in_skull_box = bool(np.all(c > box_lo) and np.all(c < box_hi))
+        if (p[:, 1].mean() > y0 + 0.04 or in_skull_box) and np.ptp(p[:, 1]) < 0.3:
+            w = np.ones(len(p))              # a head part (skull, mandible, teeth, eye, ear): fully rigid
+            STATE.setdefault('head_all', []).append(pid)
+            if m['system'] in ('skeletal', 'sensory'):
+                STATE.setdefault('head_parts', []).append(pid)
+        else:
+            # One weight per part (from its centroid): a structure crossing the blend band moves as a
+            # whole and is never stretched internally.
+            w = np.full(len(p), ml.smoothstep(y0, y0 + 0.05, p[:, 1].mean()))
+        if w.max() < 1e-3:
+            continue
+        m['pos'] = m['pos'] * (1 - w[:, None]) + ml.apply_similarity(p, s, R, t) * w[:, None]
+        n += 1
+    report['rigid_head'] = {'scale': float(s), 'pairs': int(head.sum()), 'residual_mm_median': float(np.median(resid) * 1000), 'parts': n}
+    log('rigid head', report['rigid_head'])
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).parent
@@ -42,6 +189,9 @@ SOURCES = {
              'url': 'https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html'},
     'hra': {'name': 'HRA 3D Reference Organ Set for Female v1.5', 'author': 'Kristen Browne, Heidi Schlehlein; Human Reference Atlas / HuBMAP',
             'license': 'CC BY 4.0', 'url': 'https://doi.org/10.48539/HBM352.BTSQ.586'},
+    'mpfb': {'name': 'MPFB2 / MakeHuman (parametric body)', 'author': 'MakeHuman Community (Joel Palmius et al.)',
+             'license': 'CC0 1.0 (MakeHuman assets); the GPL-3 MPFB2 add-on is used only as a tool',
+             'url': 'https://static.makehumancommunity.org/mpfb.html'},
     'generated': {'name': 'Generated for Human Atlas (schematic)', 'author': 'Human Atlas contributors', 'license': 'CC BY 4.0',
                   'url': 'https://github.com/ashemag/human-atlas/blob/main/DATA_SOURCES.md'},
 }
@@ -58,11 +208,11 @@ HRA_PELVIS = {'hip_L': ['VH_F_ilium_compact_bone_L', 'VH_F_ischium_compact_bone_
               'sacrum': ['VH_F_sacrum']}
 MALE_REPLACED = {  # BodyParts3D element -> HRA replacement (concept membership is transferred)
     'FJ3288': HRA_PELVIS['hip_L'], 'FJ3152': HRA_PELVIS['hip_R'], 'FJ3393': HRA_PELVIS['sacrum'],
-    'FJ2810': ['VH_F_skin'],
+    'FJ2810': ['MPFB_skin'],
 }
-MALE_DROPPED = {'FJ2812': 'Eyebrow (male surface detail; the HRA skin scan replaces the head surface)',
-                'FJ2813': 'Hair of head (male hairstyle; not part of the HRA scan)',
-                'FJ2814': 'Lip (surface detail of the male skin; the HRA skin has lips)'}
+MALE_DROPPED = {'FJ2812': 'Eyebrow (male surface detail; the female body surface replaces the head surface)',
+                'FJ2813': 'Hair of head (male hairstyle; not part of the female body surface)',
+                'FJ2814': 'Lip (surface detail of the male skin; the female body surface has lips)'}
 
 
 def log(*a):
@@ -109,7 +259,8 @@ def hra_selected(hra):
             # segments and hila (Visible Human Female) are real.
             out[name] = ('respiratory', 'thorax')
         elif 'VH_F_reproductive_system' in anc and 'VH_F_placenta' not in anc and name != 'VH_F_placenta':
-            out[name] = ('reproductive', 'pelvic')
+            # Peritoneal pouches are serosa (connective), not organ: they must not hide the bladder.
+            out[name] = ('connective' if re.search(r'pouch', name) else 'reproductive', 'pelvic')
         elif 'VH_F_urinary_bladder' in anc:
             out[name] = ('urinary', 'pelvic')
         elif 'VH_F_blood_vasculature_of_uterus' in anc:
@@ -158,12 +309,18 @@ def build_warp(atlas, male, hra, shift, report):
                for s in 'LR'}
     bm = bw.bone_points(mpos, names_m['L'], names_m['R'])
     bf = bw.bone_points(hpos, names_f['L'], names_f['R'])
-    bk = sorted(bm)
-    C.add(np.array([bm[k] for k in bk]), np.array([bf[k] for k in bk]), 'leg-bones')
+    # v3: dense surface pairs through the MPFB male / flat-female pair (identical topology) and the
+    # rig joints (both bodies already posed like the male, so no large rotation is left to the spline).
+    ds, dd, dtags, dinfo = bt.dense_correspondences(m_skin, POSE[0])
+    dtags = np.array(dtags)
+    for t in ('skin-dense', 'rig-joints'):
+        C.add(ds[dtags == t], dd[dtags == t], t)
+    report['dense'] = dinfo
+    STATE['dense'] = (ds[dtags == 'skin-dense'], dd[dtags == 'skin-dense'])
     # Body levels.
     lm_m, lm_f = bw.body_levels(m_skin), bw.body_levels(f_skin)
     lm_m['ankle'] = (bm['tib_bottom_L'][1] + bm['tib_bottom_R'][1]) / 2
-    lm_f['ankle'] = (bf['tib_bottom_L'][1] + bf['tib_bottom_R'][1]) / 2
+    lm_f['ankle'] = (POSE[1]['foot.L']['head'][1] + POSE[1]['foot.R']['head'][1]) / 2
     # Thorax: ribs 5/8/10 lateral extremes <-> HRA lung lateral extremes + rib thickness (12 mm).
     lungs = np.vstack([hpos(n) for n, p in hra.items() if 'VH_F_lungs' in p['ancestor_names']])
     for word in ('fifth', 'eighth', 'tenth'):
@@ -177,21 +334,15 @@ def build_warp(atlas, male, hra, shift, report):
                 continue
             pf = band[np.argmax(band[:, 0] * sign)].copy()
             pf[0] += 0.012 * sign
-            C.add(pm, pf, 'ribs')
-    # Skin.
-    boxes = []
-    for side in 'LR':
-        pts = np.vstack([hpos(n) for n, (s, g) in hra_selected(hra).items() if g == 'breast_' + side])
-        boxes.append((pts.min(0) - [0.01, 0.01, 0.0], pts.max(0) + 0.01))
-    fat_band = (lm_f['crotch'] - 0.30, lm_pf['iliac_crest_L'][1] + 0.05)
-    bw.skin_correspondences(m_skin, f_skin, lm_m, lm_f, C, boxes, 0.008, fat_band, f_skin.vertex_normals)
+            # v3: not added - with dense skin pairs these rib->lung pairs fought the skin on the
+            # lateral chest wall and stretched the intercostals (stretch gate).
     src, dst = C.arrays()
     # Remove near-duplicate sources (would make the spline ill-conditioned).
     _, uniq = np.unique(np.round(src, 4), axis=0, return_index=True)
     uniq = np.sort(uniq)
     src, dst = src[uniq], dst[uniq]
     tags = np.array(C.tags)[uniq]
-    warp = bw.tps(src, dst, smoothing=2e-5)
+    warp = bw.tps(src, dst, smoothing=1e-3)  # v3: regularised
     resid = np.linalg.norm(warp(src) - dst, axis=1) * 1000
     report['warp'] = {'correspondences': int(len(src)), 'by_group': {t: int((tags == t).sum()) for t in sorted(set(tags))},
                       'residual_mm_mean': float(resid.mean()), 'residual_mm_max': float(resid.max()),
@@ -418,14 +569,46 @@ def connect_ureters(F, M, report):
     out = {}
     for side, uid in (('L', 'FJ3144'), ('R', 'FJ3146')):
         u = M[uid]['pos']
-        end = u[np.argmin(u[:, 1])]
+        word, sign = ('Left', 1) if side == 'L' else ('Right', -1)
         orifice = F['VH_F_ureteral_orifice_' + side]['pos'].mean(0)
         bladder = F['VH_F_fundus_of_urinary_bladder_base']['pos']
         outward = orifice - bladder.mean(0); outward[1] = 0; outward /= np.linalg.norm(outward)
-        delta = orifice + outward * 0.006 - end
-        w = 1 - ml.smoothstep(0, 0.08, u[:, 1] - end[1])
-        M[uid]['pos'] = u + w[:, None] * delta
-        out[side] = {'gap_before_mm': float(np.linalg.norm(delta) * 1000)}
+        target = orifice + outward * 0.006
+        # Pelvic course (Gray's): the ureter crosses ANTERIOR to the common iliac bifurcation at the
+        # pelvic brim, runs down the lateral pelvic wall in front of the internal iliac vessels, then
+        # turns medially to the bladder. It never approaches the midline.
+        cia = next(m['pos'] for m in M.values() if m['name'] == f'{word} common iliac artery')
+        bif = cia[np.argmin(cia[:, 1])]
+        brim = bif + np.array([0, 0.004, 0.009])
+        brim[0] = sign * max(abs(brim[0]), 0.045)
+        hip = np.vstack([F[n]['pos'] for n in HRA_PELVIS['hip_' + side]])
+        ym = (brim[1] + target[1]) / 2
+        band = hip[(np.abs(hip[:, 1] - ym) < 0.012) & (hip[:, 0] * sign > 0.03)]
+        wall_x = sign * (np.abs(band[:, 0]).min() - 0.012) if len(band) else brim[0]
+        wall = np.array([wall_x, ym, min(brim[2], target[2]) - 0.008])
+        ctrl = np.array([brim, wall, target])
+        # Centreline of the warped ureter by height; vertices below the brim follow the new curve.
+        ys = np.linspace(u[:, 1].min(), u[:, 1].max(), 60)
+        cen = np.array([u[np.abs(u[:, 1] - y) < 0.006].mean(0) if (np.abs(u[:, 1] - y) < 0.006).any() else [np.nan] * 3 for y in ys])
+        ok = ~np.isnan(cen[:, 0])
+        cx = lambda y: np.c_[np.interp(y, ys[ok], cen[ok, 0]), y, np.interp(y, ys[ok], cen[ok, 2])]
+        below = u[:, 1] < brim[1] + 0.03
+        y_top = brim[1] + 0.03; y_end = u[:, 1].min()
+        t = np.clip((y_top - u[:, 1]) / (y_top - y_end), 0, 1)
+        # Catmull-like quadratic path: top (on the old centreline) -> brim -> wall -> target.
+        top = cx(np.array([y_top]))[0]
+        knots = np.array([top, brim, wall, target])
+        seg = np.linspace(0, 1, len(knots))
+        path = np.stack([np.interp(t, seg, knots[:, k]) for k in range(3)], 1)
+        offset = u - cx(u[:, 1])
+        new = path + offset
+        blend = ml.smoothstep(0.0, 0.25, t)[:, None]
+        u2 = u.copy()
+        u2[below] = (u * (1 - blend) + new * blend)[below]
+        # Smooth the polyline corners a little (Laplacian on vertex positions by height order).
+        M[uid]['pos'] = u2
+        out[side] = {'brim': brim.tolist(), 'lateral_wall': wall.tolist(), 'end_gap_mm': float(np.linalg.norm(u2[np.argmin(u2[:, 1])] - target) * 1000),
+                     'min_abs_x_mm': float(np.abs(u2[:, 0]).min() * 1000)}
     report['ureter_connection'] = out
 
 
@@ -554,26 +737,142 @@ def chest_and_breasts(F, M, report):
     report['breast_chest'] = out
 
 
+def mpfb_breasts(F, M, skin, report):
+    """v3 breasts: adipose body generated from the MPFB skin (inset 4 mm, closed on pectoralis major);
+    areola + nipple generated on the skin at the breast apex; the HRA glands, ducts and suspensory
+    ligaments carried rigidly (+ one uniform scale) so their nipple meets the new nipple and they
+    fit inside the fat. Returns extra parts [(meta, pos, idx)]."""
+    extra, out = [], {}
+    from scipy.spatial import cKDTree
+    skin = bt.load_obj_mesh('mpfb_skin.obj')
+    flat = bt.load_obj_mesh('mpfb_female_flat.obj')
+    # Nipple at the 4th intercostal space: midway between the warped 4th and 5th ribs where they
+    # pass the nipple's parasagittal plane; the whole mound moves along the chest wall to get there.
+    nip0 = bt.nipples(skin, POSE[1])['L']
+    rib = lambda w: next(m['pos'] for m in M.values() if m['name'] == f'Left {w} rib')
+    def front_y(r, x):
+        b = r[np.abs(r[:, 0] - x) < 0.015]
+        return float(b[b[:, 2] > np.percentile(b[:, 2], 60), 1].mean())
+    target = (front_y(rib('fourth'), nip0[0]) + front_y(rib('fifth'), nip0[0])) / 2
+    dy = float(np.clip(target - nip0[1], -0.06, 0.06))
+    P0 = np.asarray(skin.vertices).copy()
+    lifted, flat_lifted = bt.raise_breasts(skin, flat, dy)
+    skin.vertices = lifted
+    flat.vertices = flat_lifted
+    # Carry the raised breasts into the packaged skin (welded order may differ: match by position).
+    d, j = cKDTree(P0).query(F['VH_F_skin']['pos'])
+    F['VH_F_skin']['pos'] = np.where((d < 1e-7)[:, None], np.asarray(skin.vertices)[j], F['VH_F_skin']['pos'])
+    report['breast_raise'] = {'nipple_before_y': float(nip0[1]), 'target_y': target, 'dy_m': dy}
+    log('breast raise', report['breast_raise'])
+    nip1 = bt.nipples(skin, POSE[1])['L']
+    y_range = (front_y(rib('sixth'), nip1[0]) - 0.003, front_y(rib('second'), nip1[0]) + 0.01)
+    report['breast_raise']['footprint_y_range'] = list(y_range)
+    fats = bt.breast_fat_from_pair(skin, flat, y_range=y_range)
+    nips = bt.nipples(skin, POSE[1])
+    for side, word in (('L', 'Left'), ('R', 'Right')):
+        nip = nips[side]
+        fv, fi = np.asarray(fats[side].vertices), np.asarray(fats[side].faces).reshape(-1)
+        names = [n for n, f in F.items() if f['group'] == 'breast_' + side]
+        hra_nip = [n for n in names if 'nipple' in n]
+        keep = [n for n in names if not re.search(r'fat|nipple|areola', n)]
+        src_nip = np.vstack([F[n]['pos'] for n in hra_nip]).mean(0) if hra_nip else np.vstack([F[n]['pos'] for n in keep]).mean(0)
+        pts = np.vstack([F[n]['pos'] for n in keep])
+        # Uniform scale so the gland block fits the new fat (radial extent vs fat extent, 85%).
+        s = min(1.0, 0.85 * np.ptp(fv[:, :2], 0).min() / max(np.ptp(pts[:, :2], 0).max(), 1e-6))
+        z_in = nip - skin.vertex_normals[np.argmin(np.linalg.norm(skin.vertices - nip, axis=1))] * 0.006
+        for n in keep:
+            F[n]['pos'] = (F[n]['pos'] - src_nip) * s + z_in
+        fat_shell = ml.SkinShell(ml.to_trimesh(fv, fi), pitch=0.0015)
+        for n in keep:
+            F[n]['pos'], _, _ = fat_shell.keep_inside(F[n]['pos'], margin=0.001, radius=0.004)
+        for n in names:
+            if re.search(r'fat|nipple|areola', n):
+                F.pop(n)
+        (av, ai), (nv, ni) = bt.areola_and_nipple(skin, nip)
+        w = word.lower()
+        extra += [({'id': f'GEN_breast_adipose_{w}', 'name': f'{word} breast adipose tissue', 'conceptId': f'GEN:breast-adipose-{w}',
+                    'system': 'adipose', 'source': 'generated', 'accuracy': 'generated',
+                    'note': 'Generated: the skin of the MPFB2 body over the breast inset by 4 mm and closed on pectoralis major.'}, fv, fi),
+                  ({'id': f'GEN_areola_{w}', 'name': f'{word} areola', 'conceptId': f'GEN:areola-{w}', 'system': 'integumentary',
+                    'source': 'generated', 'accuracy': 'generated', 'note': 'Generated: 19 mm radius disc on the skin surface.'}, av, ai),
+                  ({'id': f'GEN_nipple_{w}', 'name': f'{word} nipple', 'conceptId': f'GEN:nipple-{w}', 'system': 'integumentary',
+                    'source': 'generated', 'accuracy': 'generated', 'note': 'Generated: 5 mm radius, on the skin at the breast apex.'}, nv, ni)]
+        out[side] = {'nipple': nip.tolist(), 'gland_scale': float(s), 'fat_vertices': int(len(fv))}
+    report['breasts_v3'] = out
+    return extra
+
+
+def rigid_inside(shell, pos, margin=0.0015, tolerance=0.0, min_scale=0.8):
+    """Translate a rigid part (or group) inside the skin; if translation alone cannot, shrink it
+    uniformly about its centroid (aspect ratios unchanged). `tolerance` = fraction of vertices allowed
+    to stay outside. Returns (pos, description)."""
+    p = pos.copy()
+    moved = np.zeros(3)
+    ok = lambda q: shell.outside(q, margin).mean() <= tolerance
+    for _ in range(6):
+        if ok(p):
+            break
+        q, _, _ = shell.keep_inside(p, margin=margin, radius=0.001, iterations=3)
+        d = q - p
+        out = shell.outside(p, margin)
+        step = d[out].mean(0) if out.any() else d[np.argmax(np.linalg.norm(d, axis=1))]
+        p = p + step; moved += step
+    scale = 1.0
+    c = p.mean(0)
+    base = p - c
+    while not ok(p) and scale > min_scale:
+        scale *= 0.99
+        p = c + base * scale
+    return p, {'translate_mm': float(np.linalg.norm(moved) * 1000), 'scale': scale}
+
+
 def keep_inside_skin(shell, M, F, report, names=None):
     """Nothing male-derived or relocated may protrude through the skin."""
     out = {}
+    # The skull, teeth, eyes and ears move as ONE rigid group (shared translation, then shared
+    # uniform shrink about the group centroid), so the face is never taken apart bone by bone.
+    head = [i for i in STATE.get('head_parts', []) if i in M]
+    if head:
+        cat = np.vstack([M[i]['pos'] for i in head])
+        if shell.outside(cat, 0.0005).sum():
+            new, how = rigid_inside(shell, cat, margin=0.001, tolerance=0.002, min_scale=0.95)
+            # The same translation + uniform scale goes to EVERY rigid head part (brain, muscles,
+            # glands too), fitted on the bones and sense organs, so nothing slips out of the skull.
+            s_, R_, t_ = ml.umeyama(cat, new)
+            for i in STATE.get('head_all', head):
+                if i in M:
+                    M[i]['pos'] = ml.apply_similarity(M[i]['pos'], s_, R_, t_)
+            out['head_group'] = {'parts': len(head), **how, 'left_outside': int(shell.outside(new, 0.0005).sum())}
     for i, m in M.items():
-        bad = shell.outside(m['pos'], 0.0005).sum()
+        # 3 mm detection margin: absorbs the later 0.2 % simplification error, so the packaged
+        # (simplified) meshes stay inside the skin too.
+        bad = shell.outside(m['pos'], 0.003).sum()
+        if i in head and bad:
+            # Residual protrusion after the group fit (a few mm at lips/nose): rigid per-part shift.
+            m['pos'], how = rigid_inside(shell, m['pos'], margin=0.003, min_scale=0.97)
+            out[i] = {'vertices_outside': int(bad), 'rigid': how, 'left_outside': int(shell.outside(m['pos'], 0.0005).sum())}
+            continue
+        if bad > 2000:
+            log('  far outside skin:', i, m['name'], int(bad), 'of', len(m['pos']))
+        if bad and (m['system'] in ('skeletal', 'sensory') or np.linalg.norm(np.ptp(m['pos'], 0)) < 0.06):
+            # Bones and sense organs are rigid: translate (then, only if needed, uniformly shrink about
+            # the centroid) - never squash them vertex by vertex, which would change their shape.
+            m['pos'], how = rigid_inside(shell, m['pos'], margin=0.003)
+            out[i] = {'vertices_outside': int(bad), 'rigid': how, 'left_outside': int(shell.outside(m['pos'], 0.0005).sum())}
+            continue
         if bad:
-            m['pos'], d, left = shell.keep_inside(m['pos'], margin=0.0015, radius=0.012)
+            m['pos'], d, left = shell.keep_inside(m['pos'], margin=0.003, radius=0.012)
             out[i] = {'vertices_outside': int(bad), 'moved_mm': d * 1000, 'left_outside': left}
     for n, f in F.items():
         if f['group'] in ('skin',) or n in ('VH_F_nipple_L', 'VH_F_nipple_R'):
             continue
-        bad = shell.outside(f['pos'], 0.0).sum()
+        bad = shell.outside(f['pos'], 0.003).sum()
         if not bad:
             continue
-        if f['group'].startswith('breast') and not re.search(r'nipple|areola|tubercle', n):
-            # HRA lactiferous ducts/sinuses reach the nipple surface; keep them 1.5 mm inside the skin.
-            f['pos'], d, left = shell.keep_inside(f['pos'], margin=0.0015, radius=0.004)
-            out[n] = {'vertices_outside': int(bad), 'moved_mm': d * 1000, 'left_outside': left}
-        else:
-            out[n] = {'vertices_outside': int(bad), 'moved_mm': 0, 'left_outside': int(bad)}
+        # HRA ducts, lung segments and any other HRA soft organ touching the (smaller) MPFB body
+        # are kept 3 mm inside the skin with a smooth local push.
+        f['pos'], d, left = shell.keep_inside(f['pos'], margin=0.003, radius=0.008)
+        out[n] = {'vertices_outside': int(bad), 'moved_mm': d * 1000, 'left_outside': left}
     report['skin_protrusion_fix'] = out
     log('inside skin: fixed', len(out), 'parts')
 
@@ -586,12 +885,12 @@ GENERATED = {
     'labium_minus_left': ('Left labium minus', 'reproductive', 'left labium minus', ['vulva']),
     'labium_minus_right': ('Right labium minus', 'reproductive', 'right labium minus', ['vulva']),
     'vestibule_of_vagina': ('Vestibule of vagina', 'reproductive', 'vestibule of vagina', ['vulva']),
-    'glans_of_clitoris': ('Glans of clitoris', 'reproductive', 'glans of clitoris', ['vulva', 'clitoris']),
-    'body_of_clitoris': ('Body of clitoris', 'reproductive', 'body of clitoris', ['vulva', 'clitoris']),
-    'crus_of_clitoris_left': ('Left crus of clitoris', 'reproductive', 'left crus of clitoris', ['vulva', 'clitoris']),
-    'crus_of_clitoris_right': ('Right crus of clitoris', 'reproductive', 'right crus of clitoris', ['vulva', 'clitoris']),
-    'bulb_of_vestibule_left': ('Left bulb of vestibule', 'reproductive', 'left bulb of vestibule', ['vulva']),
-    'bulb_of_vestibule_right': ('Right bulb of vestibule', 'reproductive', 'right bulb of vestibule', ['vulva']),
+    'glans_of_clitoris': ('Glans of clitoris', 'erectile', 'glans of clitoris', ['vulva', 'clitoris']),
+    'body_of_clitoris': ('Body of clitoris', 'erectile', 'body of clitoris', ['vulva', 'clitoris']),
+    'crus_of_clitoris_left': ('Left crus of clitoris', 'erectile', 'left crus of clitoris', ['vulva', 'clitoris']),
+    'crus_of_clitoris_right': ('Right crus of clitoris', 'erectile', 'right crus of clitoris', ['vulva', 'clitoris']),
+    'bulb_of_vestibule_left': ('Left bulb of vestibule', 'erectile', 'left bulb of vestibule', ['vulva']),
+    'bulb_of_vestibule_right': ('Right bulb of vestibule', 'erectile', 'right bulb of vestibule', ['vulva']),
     'female_urethra': ('Female urethra', 'urinary', 'female urethra', []),
     'ischiocavernosus_left': ('Left ischiocavernosus', 'muscular', 'left ischiocavernosus', ['female perineal muscles']),
     'ischiocavernosus_right': ('Right ischiocavernosus', 'muscular', 'right ischiocavernosus', ['female perineal muscles']),
@@ -622,11 +921,11 @@ def vulva_landmarks(F, M, skin, lm, tmp):
     inner = vag[proj > proj.max() - 0.003].mean(0)
     # The real HRA pelvis is not centred on x = 0: use its pubic symphysis as the midline.
     S = (lm['symphysis_bottom_L'] + lm['symphysis_bottom_R']) / 2
-    x0 = float(S[0])
+    x0 = 0.0   # v3: MPFB body is symmetric about x = 0
     inner[0] = x0
     sv = skin.vertices
     # Vaginal orifice: where the vaginal axis meets the skin (midline band), below the symphysis.
-    band = sv[(np.abs(sv[:, 0] - x0) < 0.006) & (sv[:, 1] < S[1]) & (sv[:, 1] > inner[1] - 0.06)]
+    band = sv[(np.abs(sv[:, 0] - x0) < 6e-4) & (sv[:, 1] < S[1]) & (sv[:, 1] > inner[1] - 0.06)]
     d = band - inner
     along = d @ axis
     off = np.linalg.norm(d - np.outer(along, axis), axis=1)
@@ -636,7 +935,7 @@ def vulva_landmarks(F, M, skin, lm, tmp):
     _, _, tri = trimesh.proximity.closest_point(skin, [introitus])
     normal = skin.face_normals[tri[0]].copy(); normal[0] = 0.0; normal /= np.linalg.norm(normal)
     ap = S - introitus; ap -= normal * (ap @ normal); ap[0] = 0; ap /= np.linalg.norm(ap)
-    midline = sv[(np.abs(sv[:, 0] - x0) < 0.006) & (sv[:, 1] < S[1] + 0.04) & (sv[:, 1] > introitus[1] - 0.06)]
+    midline = sv[(np.abs(sv[:, 0] - x0) < 6e-4) & (sv[:, 1] < S[1] + 0.04) & (sv[:, 1] > introitus[1] - 0.06)]
 
     def snap(p):
         q = midline[np.argmin(np.linalg.norm(midline - p, axis=1))].copy(); q[0] = x0
@@ -655,7 +954,7 @@ def vulva_landmarks(F, M, skin, lm, tmp):
         hip = np.vstack([F[n]['pos'] for n in HRA_PELVIS['hip_' + key]])
         a, b = lm['symphysis_bottom_' + key], lm['ischial_tuberosity_' + key]
         pts = []
-        for t in (0.15, 0.33, 0.5, 0.65):
+        for t in (0.15, 0.45, 0.7, 0.95):   # along the ischiopubic ramus
             q = a + (b - a) * t
             bone = hip[np.argmin(np.linalg.norm(hip - q, axis=1))]
             dd = centre - bone; dd[1] *= 0.3; dd /= np.linalg.norm(dd)
@@ -924,7 +1223,9 @@ def write_package(M, F, G, extra, atlas, removed, report):
         if f.get('seal'):
             e['seal'] = True
         if n == 'VH_F_skin':
-            e['note'] = 'Scan-derived body surface of the Visible Human Female (HRA), closed and smooth, including the vulva, mons and perineum.'
+            e.update(id='MPFB_skin', source='mpfb', accuracy='generated', uberon='',
+                     note='Generated body surface: MPFB2 (MakeHuman, CC0) parametric average adult female (1.63 m, BMI 22.5), '
+                          'posed by its rig into the reference pose; schematic pudendal cleft. Not scan-derived.')
         add(e, f['pos'], f['nrm'], f['idx'])
     for stem, g in G.items():
         add({'id': 'GEN_' + stem, 'name': g['name'], 'conceptId': by_label.get(g['label']) or 'GEN:' + stem, 'system': g['system'],
@@ -956,8 +1257,11 @@ def write_package(M, F, G, extra, atlas, removed, report):
         add_concept(c['id'], c['name'], els)
     groups = {}
     for n, f in F.items():
+        if n == 'VH_F_skin':
+            continue
         for anc in f['hra']['ancestor_names']:
             groups.setdefault(anc, []).append(n)
+    add_concept('FMA7163', 'Skin', ['MPFB_skin'])
     for g, members in groups.items():
         if g in SKIP_GROUPS:
             continue
@@ -978,9 +1282,9 @@ def write_package(M, F, G, extra, atlas, removed, report):
     add_concept('HRA:VH_F_pelvis', 'Female pelvis', HRA_PELVIS['hip_L'] + HRA_PELVIS['hip_R'] + HRA_PELVIS['sacrum'] + ['VH_F_coccyx'])
     add_concept('GEN:breasts', 'Breasts', [n for n, f in F.items() if f['group'].startswith('breast')])
     manifest = {
-        'version': 'Human Atlas female 2.0 (HRA female body + warped BodyParts3D + generated)',
-        'sex': 'female', 'source': 'HRA 3D Reference Organ Set for Female v1.5 (body, pelvis, organs, breasts); BodyParts3D 4.0 (warped); generated structures',
-        'scope': 'Adult female reference assembly built on the scan-derived Visible Human Female body surface and pelvis (HRA).',
+        'version': 'Human Atlas female 3.0 (MPFB2 average female body + HRA pelvis/organs + warped BodyParts3D + generated)',
+        'sex': 'female', 'source': 'MPFB2/MakeHuman CC0 (body surface); HRA 3D Reference Organ Set for Female v1.5 (pelvis, pelvic organs, lungs, breast glands); BodyParts3D 4.0 (warped); generated structures',
+        'scope': 'Adult female reference assembly: average adult female body (MPFB2, BMI 22.5) with the scan-derived Visible Human Female pelvis and organs (HRA).',
         'sources': SOURCES, 'accuracyNotes': ACCURACY_NOTES, 'parts': parts, 'concepts': concepts, 'chunks': chunks,
         'triangles': total, 'build': {'removedMaleParts': sorted(removed), 'labelCorrections': fixes, 'report': 'work/female/report.json'},
     }
@@ -1005,11 +1309,19 @@ def main():
     atlas, male, hra = load_inputs(args, cfg)
     if args.resume:
         M, F, report, removed, ctx = pickle.loads((WORK / 'stage.pkl').read_bytes())
+        POSE[:] = ctx['pose']
     else:
         report = {}
         removed = classify_male(atlas, cfg)
         shift = hra_frame(hra)
         report['frame_shift_m'] = shift.tolist()
+        pose_path = WORK / 'male_pose.json'
+        if not pose_path.exists():
+            import subprocess
+            subprocess.run([sys.executable, str(HERE / 'male_pose.py')], check=True)
+        _, joints, _ = bt.retarget_hra(hra, shift, pose_path, report, args.blender)
+        POSE[:] = [json.loads(pose_path.read_text()), joints]
+        shift = np.zeros(3)
         warp, f_skin, lm_pf, heads, bm, bf, lm_m, lm_f = build_warp(atlas, male, hra, shift, report)
         M = {}
         for p in atlas['parts']:
@@ -1018,9 +1330,14 @@ def main():
             m = male[p['id']]
             M[p['id']] = {'pos': warp(m['pos']), 'idx': m['idx'], 'name': p['name'], 'system': p['system']}
         log('warped', len(M), 'male parts')
-        articulated_arms(M, male, atlas, hra, shift, report)
+        bt.rigid_hands_feet(M, male, POSE[0], POSE[1], report)
+        bt.rigid_legs(M, male, POSE[0], POSE[1], {s: lm_pf["acetabulum_" + s] for s in "LR"}, report)
+        rigid_head(M, male, report)
+        pin_midline(M, report)
+        for m in M.values():
+            m['warp_pos'] = m['pos'].copy()      # for the stretch gate: warp vs later corrections
         F = place_hra(hra, hra_selected(hra), shift)
-        ctx = {'lm_pf': lm_pf, 'heads': heads, 'bm': bm, 'bf': bf, 'lm_m': lm_m, 'lm_f': lm_f}
+        ctx = {'lm_pf': lm_pf, 'heads': heads, 'bm': bm, 'bf': bf, 'lm_m': lm_m, 'lm_f': lm_f, 'pose': list(POSE)}
         (WORK / 'stage.pkl').write_bytes(pickle.dumps((M, F, report, removed, ctx)))
     import trimesh
     skin = ml.to_trimesh(F['VH_F_skin']['pos'], F['VH_F_skin']['idx'])
@@ -1036,7 +1353,10 @@ def main():
     connect_ureters(F, M, report)
     resolve_collisions(F, M, report)
     soft_tissue_off_pelvis(F, M, report)
-    chest_and_breasts(F, M, report)
+    breast_extra = mpfb_breasts(F, M, skin, report)
+    # The breasts moved: rebuild the skin shell used by every later containment step.
+    skin = ml.to_trimesh(F['VH_F_skin']['pos'], F['VH_F_skin']['idx'])
+    shell = ml.SkinShell(skin)
     keep_inside_skin(shell, M, F, report)
     G = generate(F, M, skin, ctx['lm_pf'], report, args.blender)
     check_generated(G, F, M, shell, report)
@@ -1045,7 +1365,7 @@ def main():
     extra = [({'id': 'GEN_subcutaneous_fat_gluteofemoral', 'name': 'Subcutaneous fat of hips, buttocks and thighs (female distribution)',
                'conceptId': 'GEN:subcutaneous-fat-gluteofemoral', 'system': 'integumentary', 'source': 'generated', 'accuracy': 'generated',
                'note': 'Generated / schematic: the extra gluteofemoral subcutaneous fat (8 mm) between the warped male soft tissue and the scan-derived female skin.'},
-              fv, fi)]
+              fv, fi)] + breast_extra
     # Final surveys for VERIFICATION.md.
     fixed = {i: (m['pos'], m['idx']) for i, m in M.items()}
     final = {}
@@ -1067,6 +1387,8 @@ def main():
             ml.write_obj(dbg / f"f_{f['system']}_{n}.obj", f['pos'], f['idx'])
         for s, g in G.items():
             ml.write_obj(dbg / f"g_{g['system']}_{s}.obj", g['pos'], g['idx'])
+    relax_corrections(M, male, shell, report)
+    stretch_report(M, male, report)
     write_package(M, F, G, extra, atlas, removed, report)
     (WORK / 'report.json').write_text(json.dumps(report, indent=1, default=float))
 

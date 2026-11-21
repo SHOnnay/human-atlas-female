@@ -329,9 +329,15 @@ def push_out(pos, fixed, margin=0.0015, radius=0.015, iterations=6, direction=No
 def _spread(pos, ids, disp, radius):
     from scipy.sparse import coo_matrix
     from scipy.spatial import cKDTree
-    sdm = cKDTree(pos).sparse_distance_matrix(cKDTree(pos[ids]), radius * 2.5, output_type='coo_matrix')
-    w = coo_matrix((np.exp(-sdm.data ** 2 / radius ** 2), (sdm.row, sdm.col)), shape=sdm.shape).tocsr()
-    step = (w @ disp) / np.maximum(1.0, np.asarray(w.sum(1)).ravel())[:, None]
+    tree = cKDTree(pos)
+    num = np.zeros_like(pos); den = np.zeros(len(pos))
+    ids = np.asarray(ids)
+    for k in range(0, len(ids), 2000):   # chunked: bounded memory for large protrusions
+        sub = ids[k:k + 2000]
+        sdm = tree.sparse_distance_matrix(cKDTree(pos[sub]), radius * 2.5, output_type='coo_matrix')
+        w = coo_matrix((np.exp(-sdm.data ** 2 / radius ** 2), (sdm.row, sdm.col)), shape=sdm.shape).tocsr()
+        num += w @ disp[k:k + 2000]; den += np.asarray(w.sum(1)).ravel()
+    step = num / np.maximum(1.0, den)[:, None]
     step[ids] = disp  # penetrating vertices move fully
     return step
 

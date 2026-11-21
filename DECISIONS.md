@@ -1,6 +1,92 @@
-# Decisions — female anatomy model (version 2)
+# Decisions — female anatomy model
 
-The first version used the male BodyParts3D body scaled ×0.969 with organs swapped in, and it failed review. Version 2 rebuilds the model around the real female body. Each entry gives the decision, the reason and the consequence. Numbers come from `work/female/report.json`, `measurements.json` and `gate_b.json`, written by every build, and are summarised in VERIFICATION.md.
+Each entry gives the decision, the reason and the consequence. Numbers come from `work/female/report.json`, `measurements.json` and `gate_b.json`, written by every build, and are summarised in VERIFICATION.md.
+
+- **Version 1** used the male BodyParts3D body scaled ×0.969 with organs swapped in. It failed review.
+- **Version 2** (D21–D32 below) rebuilt the model around the HRA Visible Human Female.
+- **Version 3** (D33–D46, first) is the polish milestone. It changes the body surface and replaces every large-rotation and shape-changing step with rigid transforms. Where it conflicts with v2, v3 wins.
+
+## Version 3 (polish milestone)
+
+**D33. Root cause: the pose. The body is now MPFB2's average adult female, posed by its rig into the male pose.**
+The HRA female stands with abducted arms and wide-apart knees, so the v2 spline had to absorb large rotations. Those rotations sheared the hands, bent the spine and smeared the thighs.
+
+v3 generates the body with **MPFB2** (MakeHuman; CC0 assets; the GPL add-on is used only as a tool) via `scripts/female/create_mpfb_body.py`:
+- female, 25 years, average proportions
+- stature 1.63 m; BMI 22.5 kg/m² (mass = closed volume × 1010 kg/m³), the brief's target
+- weight is bisected first; when the weight slider saturates, muscle is bisected
+
+Its **default rig is posed so that every bone points like the matching male bone**:
+- upper arm, forearm and wrist (with palm roll)
+- the four metacarpals and every phalanx
+- neck and head
+
+The legs take a natural female stance: knee centres 11 cm apart and ankles 9 cm apart, from the wider female hip joints. Where the thighs press together, each side is flattened onto its own side of the midline (`flatten_thigh_contact`, using rest-pose sides) instead of interpenetrating.
+
+So large rotations are done by bones, never by the spline. Consequences:
+- The skin is now **generated** (source `mpfb`), not scan-derived. This contradicts v2's "keep the HRA skin"; the brief's own root-cause fix requires a re-posed body, and the HRA scan has no rig.
+- The HRA skin is no longer packaged.
+
+**D34. Dense correspondences through a same-topology pair replace hand-tuned contour pairs.**
+The same script also builds:
+- **an MPFB male** fitted to the BodyParts3D male: stature, then weight and muscle by grid search on mid-sagittal torso and thigh depths, with legs posed like the male
+- **the same female with a flat chest** (cup size 0)
+
+All three meshes share one topology (53,514 vertices). The MPFB male is fitted to the BodyParts3D skin by:
+1. a similarity ICP
+2. a smooth non-rigid ICP (neighbourhood-averaged closest-point steps, outliers over 4 cm rejected)
+
+That fit brings the median gap down from 8 mm to about 2 mm. Then each 2 cm cell gives one pair: *BodyParts3D male skin point → flat-female vertex with the same index*. About 4,400 pairs are used, plus rig joints (shoulder, elbow, wrist, knee, ankle, C3/C5/C7) offset like the male joint. The warp target is the **flat** female, so the chest wall is not pulled into the breasts.
+
+**D35. Rigid parts are rigid.** Every bone that changed shape in v2 now gets a rotation plus *uniform* scale only:
+- **Hands and feet:** each metacarpal and phalanx is anchored on its MPFB rig bone, proximal end on the joint, axis along the bone, with the male palm or sole normal for roll, and scaled by the rig-bone length. One limb-level similarity, with a common scale left/right, carries the carpals and tarsals. Soft tissue past the wrist or ankle follows by **linear blend skinning** (inverse-distance weights to the male bone axes).
+- **Long bones:** femur + patella, tibia + fibula, humerus, radius + ulna. Each is a minimal rotation from the male segment onto the female one, which keeps the male axial roll so the patella faces forward. The female segments run real HRA acetabulum → rig knee → rig ankle, and shoulder → elbow → wrist.
+- **The head:** one similarity fitted on the head and face pairs, plus heavily weighted eye anchors to the MPFB eye joints. It is blended into the neck between C3 and 5 cm above. Parts lying wholly in the head (skull, mandible, teeth, eyes, ears) are fully rigid. The jaw therefore keeps its closed male relation; brow and jaw become female only by the overall head scale, labelled "warped approximation".
+- **Inside-skin correction for bones and sense organs:** translation first, then, only if needed, a uniform shrink about the centroid. They are never squashed vertex by vertex (in v2 that stretched eye parts up to 128×).
+
+Gate: every hand and foot bone's PCA aspect ratios are within 3% of the male's. The measured maximum is in VERIFICATION.md.
+
+**D36. Spine and sternum are pinned to the mid-sagittal plane.**
+The lateral offset of each midline bone (vertebrae, sacrum, coccyx, sternum) is removed rigidly. The smoothed offset profile is subtracted from nearby tissue with a 7 cm Gaussian falloff, so the ribs and linea alba follow without tearing.
+
+**D37. HRA pelvic organs move as one rigid block, without scale.**
+The bony pelvis takes the pelvic similarity (acetabula → MPFB hip joints, plus front and back skin). The uterus, adnexa, vagina, bladder and uterine vessels keep their scanned size: their block centroid goes where the similarity sends it, and the block is only rotated.
+
+The lungs and breast glands keep a uniform-scale similarity; a similarity is shape-preserving, and they must fit the smaller thorax.
+
+**D38. Breasts are rebuilt on the parametric body.**
+- **Breast mound and nipple level:** the mound is the exact difference between the female and flat-chest meshes. It is moved along the chest wall (resampled, so its shape is unchanged) until the nipple lies midway between the warped 4th and 5th ribs, i.e. the 4th intercostal space.
+- **Adipose body:** the skin over the mound inset 4 mm, closed by a back surface 8 mm under the flat chest (on pectoralis major), lateral to the sternal edge, Taubin-smoothed so there are no hard edges. It is its own **Adipose tissue** system (pale yellow, `#eedc9a`). In the app it turns 22% opaque whenever a structure inside it is selected.
+- **Areola** (19 mm disc lifted 0.2–1.2 mm off the skin) and **nipple** (5 mm capsule along the skin normal): generated meshes on the skin surface.
+- **Glands:** the HRA glands, ducts and Cooper's ligaments are carried rigidly with one uniform scale, so their nipple meets the new nipple, and kept inside the fat. The HRA fat, areola and nipple are dropped.
+
+**D39. Clitoris, bulbs and vulva are placed on the true midline of the parametric body.**
+The vulva landmarks use only exactly mid-sagittal skin vertices (the MPFB mesh is symmetric). In v2 a 6 mm band could pick up inner-thigh skin. The pudendal cleft (8.5 cm, 7 mm deep) is indented on those vertices.
+
+The crura now follow the ischiopubic rami from 15% to 85% of the symphysis–ischial tuberosity distance. Glans, body and crura and the vestibular bulbs are in a new **Erectile tissue** system (`#8e4f7a`), distinct from the uterus.
+
+**D40. Ureters follow the lateral pelvic wall.**
+Below the pelvic brim each warped ureter is re-routed along a path:
+- in front of the common iliac bifurcation (at least 4.5 cm from the midline)
+- down the lateral pelvic wall (1.2 cm medial to the hip bone)
+- to the ureteric orifice
+
+The cross-section is kept. The gate checks that neither ureter ever crosses the midline.
+
+**D41. Breast position, uterus size and Q-angle are measured, not forced.**
+The measurement table reports:
+- nipple level against the warped ribs
+- breast footprint (ribs 2–6, sternal edge to mid-axillary line)
+- clitoral and crus length
+- uterine dimensions, version and flexion
+- the stretch gate (no warped triangle edge over 2× its source)
+
+Values that miss a cited range are reported as such, with their cause, in VERIFICATION.md.
+
+**D42. The web app can be photographed from the same cameras as the Blender composites.**
+`?debug` now exposes `__atlasRenderer.camera / filter / opacity`. `scripts/female/capture_webapp.py` uses those calls to render, in headless Chromium, every Blender category and view from the same directions, with the same part sets and the same 40% skin.
+
+## Version 2
 
 ## Body and frame
 

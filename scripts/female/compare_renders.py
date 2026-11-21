@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'docs' / 'screenshots' / 'compare'
 TMP = Path(tempfile.gettempdir()) / 'ha-compare'
 VISIBLE = {'cardiac', 'sensory', 'skeletal', 'muscular', 'arterial', 'venous', 'nervous', 'respiratory', 'digestive', 'urinary',
-           'lymphatic', 'endocrine', 'reproductive', 'connective'}
+           'lymphatic', 'endocrine', 'reproductive', 'connective', 'adipose', 'erectile'}
 
 
 def categories(p, c):
@@ -43,7 +43,29 @@ def categories(p, c):
         out.append('perineum-closeup')
     if 1.0 < c[1] < 1.45 and abs(c[0]) < 0.22 and (s in ('reproductive', 'connective', 'skeletal') or re.search(r'pectoralis|serratus|intercostal', n)):
         out.append('breast-closeup')
+    # v3 close-ups.
+    if 0.55 < c[1] < 0.83 and c[0] > 0.17 and s not in ('integumentary',):
+        out.append('hand-left')
+    if c[1] > 1.38 and s in ('skeletal', 'sensory') and n != 'skin':
+        out.append('head-skeleton')
+    in_breast = 1.0 < c[1] < 1.45 and abs(c[0]) < 0.24
+    if in_breast and (s in ('reproductive', 'adipose', 'skeletal') or re.search(r'pectoralis|serratus|intercostal|nipple|areola', n)):
+        out.append('breast-fat-on')
+        if s != 'adipose':
+            out.append('breast-fat-off')
+    if 0.6 < c[1] < 1.0 and abs(c[0]) < 0.15 and (s in ('reproductive', 'urinary', 'erectile') or n == 'skin'
+                                                   or re.search(r'hip bone|ilium|ischium|pubis|bulbospong|ischiocav|perine|sacrum', n)):
+        out.append('vulva-closeup')
+    if re.search(r'uter|cervix|fallopian|tube|ovary', n) and s == 'reproductive' and 'ligament' not in n and 'pouch' not in n:
+        out.append('uterus-isolated')
     return out
+
+
+JOB_VIEWS = {'perineum-closeup': ['front', 'side', 'back', 'oblique', 'below'], 'hand-left': ['palm', 'dorsum', 'front', 'back'], 'head-skeleton': ['front', 'side'],
+             'breast-fat-on': ['front', 'side'], 'breast-fat-off': ['front', 'side'], 'vulva-closeup': ['front', 'below', 'oblique'],
+             'uterus-isolated': ['front', 'side', 'oblique']}
+JOB_ALPHA = {'vulva-closeup': {'integumentary': 0.4}}
+NO_FRAME = {'vulva-closeup': {'integumentary'}}   # systems that do not set the camera framing
 
 
 def export(body, path):
@@ -63,6 +85,8 @@ def export(body, path):
             V.append(pos); F.append(idx.reshape(-1, 3) + off); off += len(pos)
         V = np.vstack(V); F = np.vstack(F)
         ml.write_obj(d / f'{system}.obj', V, F.reshape(-1))
+        if system in NO_FRAME.get(cat, ()):
+            continue
         lo, hi = bounds.get(cat, (V.min(0), V.max(0)))
         bounds[cat] = (np.minimum(lo, V.min(0)), np.maximum(hi, V.max(0)))
     return bounds
@@ -77,13 +101,11 @@ def main():
     bf = export('female', ROOT / 'public/models/female/atlas.json')
     OUT.mkdir(parents=True, exist_ok=True)
     jobs = []
-    for cat in sorted(set(bm) & set(bf)):
-        lo = np.minimum(bm[cat][0], bf[cat][0]); hi = np.maximum(bm[cat][1], bf[cat][1])
-        if cat == 'perineum-closeup':
-            views = ['front', 'side', 'back', 'oblique', 'below']
-        else:
-            views = ['front', 'side', 'back', 'oblique']
-        jobs.append({'cat': cat, 'lo': lo.tolist(), 'hi': hi.tolist(), 'views': views})
+    for cat in sorted(bf):          # female-only categories (uterus) render a blank male panel
+        mb = bm.get(cat, bf[cat])
+        lo = np.minimum(mb[0], bf[cat][0]); hi = np.maximum(mb[1], bf[cat][1])
+        views = JOB_VIEWS.get(cat, ['front', 'side', 'back', 'oblique'])
+        jobs.append({'cat': cat, 'lo': lo.tolist(), 'hi': hi.tolist(), 'views': views, 'alpha': JOB_ALPHA.get(cat, {})})
     (TMP / 'jobs.json').write_text(json.dumps(jobs))
     blender_run.run(Path(__file__).with_name('render_compare_blender.py'), [TMP / 'jobs.json', TMP], quiet=True)
     made = []

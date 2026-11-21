@@ -195,14 +195,111 @@ def measure(path, female):
     return out
 
 
+FEMALE_REFERENCE = {
+    'bmi_kg_m2': (21.0, 24.0, 'Target: average adult woman, BMI ~22-23 (WHO normal 18.5-24.9; body mass = volume x 1010 kg/m^3)'),
+    'clitoral_length_cm': (9.0, 11.0, 'Total clitoral length (glans + body + crus) 9-11 cm (O\'Connell et al., J Urol 2005;174:1189; Di Marino & Lepidi 2014)'),
+    'crus_length_cm': (5.0, 9.0, 'Crus of clitoris 5-9 cm (O\'Connell et al., J Urol 1998;159:1892)'),
+    'uterus_length_cm': (6.5, 9.0, 'Nulliparous uterus ~7.5 x 5 x 2.5-3 cm (Gray\'s Anatomy 42nd ed.; Standring 2020)'),
+    'uterus_width_cm': (4.0, 6.0, 'Nulliparous uterus width ~5 cm (Gray\'s Anatomy 42nd ed.)'),
+    'uterus_ap_cm': (2.0, 4.0, 'Nulliparous uterus antero-posterior ~2.5-3 cm (Gray\'s Anatomy 42nd ed.)'),
+}
+
+
+def pca_extent(p):
+    c = p - p.mean(0)
+    _, _, vt = np.linalg.svd(c[:: max(1, len(c) // 4000)], full_matrices=False)
+    return np.sort(np.ptp(c @ vt.T, axis=0))[::-1], vt
+
+
+def rib_front_y(rib, x):
+    """Height of a rib where it passes the parasagittal plane x (its anterior part)."""
+    band = rib[np.abs(rib[:, 0] - x) < 0.015]
+    if not len(band):
+        return None
+    front = band[band[:, 2] > np.percentile(band[:, 2], 60)]
+    return float(front[:, 1].mean())
+
+
+def female_extra(path):
+    atlas, M = ml.load_package(path)
+    by = {p['name']: M[p['id']]['pos'] for p in atlas['parts']}
+    out = {}
+    skin_p = by['Skin']
+    out['bmi_kg_m2'] = json.loads((ROOT / 'work/female/mpfb/mpfb_info.json').read_text())['bmi']
+    # Clitoris.
+    glans, body = pca_extent(by['Glans of clitoris'])[0][0], pca_extent(by['Body of clitoris'])[0][0]
+    crura = [pca_extent(by[f'{s} crus of clitoris'])[0][0] for s in ('Left', 'Right')]
+    out['crus_length_cm'] = float(np.mean(crura) * 100)
+    out['clitoral_length_cm'] = float((glans + body + np.mean(crura)) * 100)
+    out['clitoris_parts_cm'] = {'glans': glans * 100, 'body': body * 100, 'crura': [c * 100 for c in crura]}
+    # Uterus (body, fundus, walls, lower segment, cervix).
+    ut = np.vstack([v for n, v in by.items() if re.search(r'^(Body|Fundus) of uterus$|wall of uterus$|^Lower uterine segment$|^Uterine cervix$', n)])
+    ext, vt = pca_extent(ut)
+    out['uterus_length_cm'], out['uterus_width_cm'], out['uterus_ap_cm'] = (float(e * 100) for e in ext)
+    fundus, cervix = by['Fundus of uterus'].mean(0), by['Uterine cervix'].mean(0)
+    body_c = by['Body of uterus'].mean(0)
+    ax_body = fundus - body_c; ax_cx = body_c - cervix
+    ang = lambda a, b: float(np.degrees(np.arccos(a @ b / np.linalg.norm(a) / np.linalg.norm(b))))
+    out['uterus_anteverted'] = bool(fundus[2] > cervix[2] and fundus[1] > cervix[1])
+    out['uterus_version_deg_from_vertical'] = float(np.degrees(np.arctan2(fundus[2] - cervix[2], fundus[1] - cervix[1])))
+    out['uterus_flexion_deg'] = ang(ax_body, ax_cx)
+    vag = [v for n, v in by.items() if re.search(r'vagina', n, re.I) and 'vestibule' not in n.lower()]
+    if vag:
+        vv = np.vstack(vag)
+        out['cervix_in_vault'] = bool(np.linalg.norm(cervix - vv[np.argmax(vv[:, 1])]) < 0.03)
+    # Nipple level and breast footprint (left).
+    nip = by['Left nipple'].mean(0)
+    ribs = {w: by[f'Left {w} rib'] for w in ('second', 'third', 'fourth', 'fifth', 'sixth', 'seventh') if f'Left {w} rib' in by}
+    ry = {w: rib_front_y(r, nip[0]) for w, r in ribs.items()}
+    out['nipple_y_m'] = float(nip[1]); out['rib_front_y_m_at_nipple_x'] = ry
+    out['nipple_at_4th_ics'] = bool(ry.get('fifth') is not None and ry['fifth'] - 0.01 <= nip[1] <= ry['fourth'] + 0.01)
+    fat = by['Left breast adipose tissue']
+    back = fat[fat[:, 2] < np.percentile(fat[:, 2], 40)]
+    xs = [rib_front_y(ribs['second'], fat[:, 0].mean()), rib_front_y(ribs['sixth'], fat[:, 0].mean())]
+    stern = np.vstack([v for n, v in by.items() if re.search(r'sternum|manubrium', n, re.I)])
+    out['breast_footprint'] = {'top_y': float(fat[:, 1].max()), 'bottom_y': float(fat[:, 1].min()), 'rib2_y': xs[0], 'rib6_y': xs[1],
+                               'medial_x': float(fat[:, 0].min()), 'sternal_edge_x': float(stern[:, 0].max()),
+                               'lateral_x': float(fat[:, 0].max()),
+                               'midaxillary_x': float(skin_p[(np.abs(skin_p[:, 1] - nip[1]) < 0.01) & (skin_p[:, 0] > 0) & (skin_p[:, 0] < 0.2)][:, 0].max())}
+    bf = out['breast_footprint']
+    out['breast_footprint_ok'] = bool(bf['medial_x'] >= bf['sternal_edge_x'] - 0.003 and bf['top_y'] <= bf['rib2_y'] + 0.02
+                                      and bf['bottom_y'] >= bf['rib6_y'] - 0.02)
+    # Ureters never cross the midline.
+    out['ureters_lateral'] = bool(by['Left ureter'][:, 0].min() > 0 and by['Right ureter'][:, 0].max() < 0) if 'Left ureter' in by else None
+    return out
+
+
+def hand_aspect(male_path, female_path):
+    """Gate: every hand/foot bone's PCA aspect ratios (2nd/1st, 3rd/1st extent) within 3% of the male's."""
+    am, Mm = ml.load_package(male_path); af, Mf = ml.load_package(female_path)
+    fem = {p['id']: p for p in af['parts']}
+    worst, rows = 0.0, []
+    for p in am['parts']:
+        if p['system'] != 'skeletal' or not re.search(r'phalanx|metacarpal|metatarsal', p['name']) or p['id'] not in fem:
+            continue
+        em, _ = pca_extent(Mm[p['id']]['pos']); ef, _ = pca_extent(Mf[p['id']]['pos'])
+        dev = max(abs((ef[1] / ef[0]) / (em[1] / em[0]) - 1), abs((ef[2] / ef[0]) / (em[2] / em[0]) - 1))
+        worst = max(worst, dev); rows.append((p['name'], dev))
+    bad = [r for r in rows if r[1] > 0.03]
+    return {'bones': len(rows), 'max_aspect_deviation': worst, 'over_3pct': bad}
+
+
 def main():
     male = measure(ROOT / 'public/models/atlas.json', False)
     female = measure(ROOT / 'public/models/female/atlas.json', True)
+    extra = female_extra(ROOT / 'public/models/female/atlas.json')
+    female.update(extra)
     rows = []
-    for k, (lo, hi, src) in REFERENCE.items():
+    for k, (lo, hi, src) in list(REFERENCE.items()) + list(FEMALE_REFERENCE.items()):
         f = female[k]
-        rows.append({'measure': k, 'male': male[k], 'female': f, 'range': [lo, hi], 'in_range': lo <= f <= hi, 'source': src})
-    res = {'male': male, 'female': female, 'rows': rows, 'all_in_range': all(r['in_range'] for r in rows)}
+        rows.append({'measure': k, 'male': male.get(k, float('nan')), 'female': f, 'range': [lo, hi], 'in_range': lo <= f <= hi, 'source': src})
+    checks = {k: female[k] for k in ('uterus_anteverted', 'cervix_in_vault', 'nipple_at_4th_ics', 'breast_footprint_ok', 'ureters_lateral') if k in female}
+    hands = hand_aspect(ROOT / 'public/models/atlas.json', ROOT / 'public/models/female/atlas.json')
+    res = {'male': male, 'female': female, 'rows': rows, 'checks': checks, 'hand_foot_aspect': hands,
+           'all_in_range': all(r['in_range'] for r in rows)}
+    for k, v in checks.items():
+        print(f'{k:24s} {v}')
+    print('hand/foot bones', hands['bones'], 'max aspect deviation', round(hands['max_aspect_deviation'] * 100, 2), '%')
     (ROOT / 'work/female').mkdir(parents=True, exist_ok=True)
     (ROOT / 'work/female/measurements.json').write_text(json.dumps(res, indent=1))
     for r in rows:
