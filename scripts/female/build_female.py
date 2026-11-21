@@ -133,6 +133,32 @@ def stretch_report(M, male, report, limit=2.0):
     log('stretch', report['stretch']['triangles_over'], 'of', total, 'triangles over', limit, 'x;', len(bad), 'parts')
 
 
+def fit_head_skin(F, M, report, max_scale=1.15):
+    """Phase 3: the skull is never deformed to fit the face. Instead the MPFB head skin is scaled up
+    uniformly about the skull centre (blended to zero across the neck, between C5 and C3) until the
+    rigid head group (bones, teeth, eyes, ears) is inside it with a 3 mm soft-tissue margin."""
+    head = [i for i in STATE.get('head_parts', []) if i in M]
+    if not head:
+        return
+    bones = np.vstack([M[i]['pos'] for i in head])
+    c = bones.mean(0)
+    J = POSE[1]
+    y_lo, y_hi = J['neck02']['head'][1], J['neck03']['head'][1] + 0.02
+    P0 = F['VH_F_skin']['pos'].copy()
+    w = ml.smoothstep(y_lo, y_hi, P0[:, 1])
+    k, scale = 1.0, 1.0
+    for k in np.arange(1.0, max_scale + 1e-9, 0.01):
+        P = P0 + (k - 1.0) * w[:, None] * (P0 - c)
+        shell = ml.SkinShell(ml.to_trimesh(P, F['VH_F_skin']['idx']), pitch=0.002)
+        frac = float(shell.outside(bones, 0.003).mean())
+        scale = k
+        if frac <= 0.001:
+            break
+    F['VH_F_skin']['pos'] = P
+    report['head_skin_fit'] = {'head_skin_scale': float(scale), 'skull_vertices_within_3mm_of_or_outside_skin': frac}
+    log('head skin fit', report['head_skin_fit'])
+
+
 def rigid_head(M, male, report):
     """The skull is rigid: everything above the neck gets ONE similarity (rotation + translation +
     uniform scale) fitted on the dense head/face skin pairs, blended into the body warp between the
@@ -271,9 +297,11 @@ def hra_selected(hra):
             if any(k in name for k in ('nipple', 'areola')):
                 system = 'integumentary'
             elif 'suspensory' in name or 'fat' in name:
-                system = 'connective'          # visible by default: the breast's adipose body
+                system = 'connective'          # Cooper's ligaments (the HRA fat itself is replaced)
+            elif 'lactiferous' in name:
+                system = 'lactiferous'         # ducts and sinuses: own colour
             else:
-                system = 'reproductive'
+                system = 'mammary'             # glandular lobes: pinkish-white
             out[name] = (system, 'breast_' + ('L' if name.endswith('_L') else 'R'))
     return out
 
@@ -767,37 +795,50 @@ def mpfb_breasts(F, M, skin, report):
     nip1 = bt.nipples(skin, POSE[1])['L']
     y_range = (front_y(rib('sixth'), nip1[0]) - 0.003, front_y(rib('second'), nip1[0]) + 0.01)
     report['breast_raise']['footprint_y_range'] = list(y_range)
-    fats = bt.breast_fat_from_pair(skin, flat, y_range=y_range)
+    import trimesh
+    wall = trimesh.util.concatenate([ml.to_trimesh(m['pos'], m['idx']) for m in M.values()
+                                     if re.search(r'pectoralis|serratus anterior|intercostal|\brib\b|costal cartilage|sternum', m['name'], re.I)
+                                     and 1.0 < m['pos'][:, 1].mean() < 1.45])
+    fats = bt.breast_fat_from_pair(skin, flat, y_range=y_range, chest_wall=wall)
     nips = bt.nipples(skin, POSE[1])
     for side, word in (('L', 'Left'), ('R', 'Right')):
         nip = nips[side]
         fv, fi = np.asarray(fats[side].vertices), np.asarray(fats[side].faces).reshape(-1)
         names = [n for n, f in F.items() if f['group'] == 'breast_' + side]
+        import trimesh
+        drop = r'fat|nipple|areola|tubercle'
         hra_nip = [n for n in names if 'nipple' in n]
-        keep = [n for n in names if not re.search(r'fat|nipple|areola', n)]
-        src_nip = np.vstack([F[n]['pos'] for n in hra_nip]).mean(0) if hra_nip else np.vstack([F[n]['pos'] for n in keep]).mean(0)
-        pts = np.vstack([F[n]['pos'] for n in keep])
-        # Uniform scale so the gland block fits the new fat (radial extent vs fat extent, 85%).
-        s = min(1.0, 0.85 * np.ptp(fv[:, :2], 0).min() / max(np.ptp(pts[:, :2], 0).max(), 1e-6))
-        z_in = nip - skin.vertex_normals[np.argmin(np.linalg.norm(skin.vertices - nip, axis=1))] * 0.006
+        keep = [n for n in names if not re.search(drop, n)]       # real HRA lobes, ducts, sinuses, Cooper's ligaments
+        src_nip = np.vstack([F[n]['pos'] for n in hra_nip]).mean(0)
+        hra_fat = np.vstack([F[n]['pos'] for n in names if 'fat' in n])
+        # ONE rigid transform + uniform scale for the whole real HRA breast interior: the HRA nipple goes
+        # 4 mm under the new nipple, the nipple->fat-centroid axis is aligned, and the scale is the cube
+        # root of the volume ratio of the new adipose body to the real HRA one (x0.95, so it fits inside).
+        s = 0.8 * (trimesh.convex.convex_hull(fv).volume / trimesh.convex.convex_hull(hra_fat).volume) ** (1 / 3)
+        R = bt.min_rotation(hra_fat.mean(0) - src_nip, fv.mean(0) - nip)
+        anchor = nip - skin.vertex_normals[np.argmin(np.linalg.norm(skin.vertices - nip, axis=1))] * 0.004
         for n in keep:
-            F[n]['pos'] = (F[n]['pos'] - src_nip) * s + z_in
+            F[n]['pos'] = s * (F[n]['pos'] - src_nip) @ R.T + anchor
+            F[n]['nrm'] = F[n]['nrm'] @ R.T
         fat_shell = ml.SkinShell(ml.to_trimesh(fv, fi), pitch=0.0015)
         for n in keep:
-            F[n]['pos'], _, _ = fat_shell.keep_inside(F[n]['pos'], margin=0.001, radius=0.004)
+            F[n]['pos'], _, _ = fat_shell.keep_inside(F[n]['pos'], margin=0.0008, radius=0.004)
         for n in names:
-            if re.search(r'fat|nipple|areola', n):
+            if re.search(drop, n):
                 F.pop(n)
         (av, ai), (nv, ni) = bt.areola_and_nipple(skin, nip)
         w = word.lower()
         extra += [({'id': f'GEN_breast_adipose_{w}', 'name': f'{word} breast adipose tissue', 'conceptId': f'GEN:breast-adipose-{w}',
                     'system': 'adipose', 'source': 'generated', 'accuracy': 'generated',
-                    'note': 'Generated: the skin of the MPFB2 body over the breast inset by 4 mm and closed on pectoralis major.'}, fv, fi),
+                    'note': 'Generated: the space between the chest wall (pectoralis fascia + retromammary fat) and the '
+                            'breast skin inset 2.5 mm; thickness tapers to zero at the border. Matches the visible breast exactly.'}, fv, fi),
                   ({'id': f'GEN_areola_{w}', 'name': f'{word} areola', 'conceptId': f'GEN:areola-{w}', 'system': 'integumentary',
-                    'source': 'generated', 'accuracy': 'generated', 'note': 'Generated: 19 mm radius disc on the skin surface.'}, av, ai),
+                    'source': 'generated', 'accuracy': 'generated',
+                    'note': 'Generated from the skin surface: 19 mm radius raised disc with Montgomery-tubercle texture.'}, av, ai),
                   ({'id': f'GEN_nipple_{w}', 'name': f'{word} nipple', 'conceptId': f'GEN:nipple-{w}', 'system': 'integumentary',
-                    'source': 'generated', 'accuracy': 'generated', 'note': 'Generated: 5 mm radius, on the skin at the breast apex.'}, nv, ni)]
-        out[side] = {'nipple': nip.tolist(), 'gland_scale': float(s), 'fat_vertices': int(len(fv))}
+                    'source': 'generated', 'accuracy': 'generated',
+                    'note': 'Generated from the skin surface: a 5 mm radius, 6 mm high rise blending into the areola.'}, nv, ni)]
+        out[side] = {'nipple': nip.tolist(), 'gland_scale': float(s), 'fat_vertices': int(len(fv)), 'hra_parts_kept': keep}
     report['breasts_v3'] = out
     return extra
 
@@ -1330,13 +1371,16 @@ def main():
             m = male[p['id']]
             M[p['id']] = {'pos': warp(m['pos']), 'idx': m['idx'], 'name': p['name'], 'system': p['system']}
         log('warped', len(M), 'male parts')
-        bt.rigid_hands_feet(M, male, POSE[0], POSE[1], report)
+        bt.SEGS.clear()
         bt.rigid_legs(M, male, POSE[0], POSE[1], {s: lm_pf["acetabulum_" + s] for s in "LR"}, report)
+        bt.limb_skinning(M, male, report)          # limb soft tissue follows its rigid bones
+        bt.rigid_hands_feet(M, male, POSE[0], POSE[1], report)
         rigid_head(M, male, report)
         pin_midline(M, report)
         for m in M.values():
             m['warp_pos'] = m['pos'].copy()      # for the stretch gate: warp vs later corrections
         F = place_hra(hra, hra_selected(hra), shift)
+        fit_head_skin(F, M, report)
         ctx = {'lm_pf': lm_pf, 'heads': heads, 'bm': bm, 'bf': bf, 'lm_m': lm_m, 'lm_f': lm_f, 'pose': list(POSE)}
         (WORK / 'stage.pkl').write_bytes(pickle.dumps((M, F, report, removed, ctx)))
     import trimesh

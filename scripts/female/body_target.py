@@ -147,28 +147,48 @@ def make_breast_fat(skin, nipple, chest_wall, inset=0.004, radius=0.085):
 
 
 def areola_and_nipple(skin, nipple, areola_r=0.019, nipple_r=0.005, nipple_h=0.006):
-    """Areola: the skin disc around the nipple lifted 0.5 mm (a thin shell on the surface).
-    Nipple: a rounded cylinder along the skin normal. Generated, on the skin surface."""
+    """Areola and nipple shaped from the skin surface itself: the skin disc around the breast apex
+    (19 mm) is subdivided and displaced along the skin normal. Areola = a raised disc (0.5 mm) with
+    Montgomery-tubercle texture (small bumps); nipple = a 5 mm-radius, 6 mm-high smooth rise that
+    blends into the areola (no ball on a disc). Each is closed by a copy 0.2 mm under the skin."""
     import trimesh
     c = skin.triangles_center
     sel = np.where(np.linalg.norm(c - nipple, axis=1) < areola_r)[0]
     disc = skin.submesh([sel], append=True)
     disc = max(disc.split(only_watertight=False), key=lambda m: len(m.faces))
-    top = disc.vertices + disc.vertex_normals * 0.0012
-    bot = disc.vertices + disc.vertex_normals * 0.0002
-    nv = len(top)
-    edges = trimesh.grouping.group_rows(disc.edges_sorted, require_count=1)
-    be = disc.edges_sorted[edges]
-    side = np.vstack([np.c_[be[:, 0], be[:, 1], be[:, 1] + nv], np.c_[be[:, 0], be[:, 1] + nv, be[:, 0] + nv]])
-    areola = (np.vstack([top, bot]), np.vstack([disc.faces, disc.faces[:, ::-1] + nv, side]).reshape(-1))
+    for _ in range(3):
+        disc = disc.subdivide()
     _, i = trimesh.proximity.ProximityQuery(skin).vertex(nipple[None])
-    n = skin.vertex_normals[i[0]]
-    cyl = trimesh.creation.capsule(height=nipple_h, radius=nipple_r, count=[12, 12])
-    z = np.array([0, 0, 1.0])
-    v = np.cross(z, n); s = np.linalg.norm(v); cth = z @ n
-    vx = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
-    R = np.eye(3) + vx + vx @ vx * ((1 - cth) / max(s * s, 1e-12))
-    nip = (cyl.vertices @ R.T + nipple + n * (nipple_h / 2 - 0.001), np.asarray(cyl.faces).reshape(-1))
+    n0 = skin.vertex_normals[i[0]]
+    from scipy.spatial import cKDTree
+    V = np.asarray(disc.vertices)
+    # Normals from the smooth body skin (inverse-distance over 4 skin vertices), not from the cut-out
+    # disc - the disc's own boundary normals are noisy and made a spiky rim.
+    dd, jj = cKDTree(skin.vertices).query(V, k=4)
+    ww = 1 / (dd + 1e-5); N = (np.asarray(skin.vertex_normals)[jj] * ww[..., None]).sum(1)
+    N /= np.linalg.norm(N, axis=1, keepdims=True)
+    nipple_r, nipple_h = 0.006, 0.0045
+    off = V - nipple
+    r = np.linalg.norm(off - np.outer(off @ n0, n0), axis=1)
+    ang = np.arctan2(off @ np.cross(n0, [1.0, 0, 0]), off @ np.cross(n0, np.cross(n0, [1.0, 0, 0])))
+    rim = 1 - ml.smoothstep(areola_r - 0.004, areola_r, r)                  # blend into the skin at the rim
+    tuber = 0.00015 * (0.5 + 0.5 * np.sin(9 * ang) * np.sin(r * 700)) * ml.smoothstep(0.009, 0.012, r) * (1 - ml.smoothstep(0.015, 0.018, r))
+    areola_h = (0.0005 + tuber) * rim
+    nipple_h_r = nipple_h * (1 - ml.smoothstep(nipple_r * 0.3, nipple_r * 1.3, r))
+    def shell(mask, height):
+        f = disc.faces[mask[disc.faces].all(1)]
+        sub = trimesh.Trimesh(V + N * height[:, None], f, process=False)
+        sub.remove_unreferenced_vertices()
+        keep = np.unique(f)
+        top = V[keep] + N[keep] * height[keep, None]
+        bot = V[keep] + N[keep] * 0.0002
+        remap = -np.ones(len(V), int); remap[keep] = np.arange(len(keep))
+        ff = remap[f]; nv = len(keep)
+        # A single surface lying on the skin (no thin closed shell: simplification turned its side
+        # walls into spikes); the renderer draws it double-sided.
+        return top, ff.reshape(-1)
+    areola = shell(r > nipple_r * 0.9, areola_h)
+    nip = shell(r < nipple_r * 1.4, np.maximum(nipple_h_r, areola_h) + 0.0002)
     return areola, nip
 
 
@@ -236,6 +256,42 @@ def min_rotation(a, b):
     return np.eye(3) + vx + vx @ vx * ((1 - c) / s ** 2)
 
 
+SEGS = []   # (side, male joint a, male joint b, transform) for every rigid long-bone segment
+
+
+def limb_skinning(M, male, report, reach=0.07):
+    """Bone-attached skinning for limb soft tissue (muscles, tendons, vessels, nerves): every vertex
+    within `reach` of a male long-bone axis follows that bone's rigid transform (inverse-distance
+    weights over the segments of its side), faded back to the body warp over the first 8 cm from the
+    hip / shoulder joint, so limb muscles move with their bones and are not sheared by the spline."""
+    moved = 0
+    for pid, m in M.items():
+        if m['system'] == 'skeletal':
+            continue
+        src = male[pid]['pos']
+        side = 'L' if src[:, 0].mean() > 0 else 'R'
+        segs = [g for g in SEGS if g[0] == side]
+        if not segs:
+            continue
+        D = np.stack([seg_dist(src, a, b) for _, a, b, _ in segs])
+        near = D.min(0)
+        if (near < reach).mean() < 0.5:
+            continue
+        # fade toward the trunk: distance along the proximal segment from its proximal joint
+        prox = [g for g in segs if g is segs[0] or g is segs[2]] if len(segs) >= 4 else segs[:1]
+        u = np.min([np.linalg.norm(src - g[1], axis=1) for g in prox], axis=0)
+        w_limb = (1 - ml.smoothstep(reach * 0.7, reach, near)) * ml.smoothstep(0.03, 0.11, u)
+        if w_limb.max() < 1e-3:
+            continue
+        W = 1.0 / (D + 0.01) ** 4
+        W /= W.sum(0)
+        new = sum(W[k][:, None] * f(src) for k, (_, _, _, f) in enumerate(segs))
+        m['pos'] = m['pos'] * (1 - w_limb[:, None]) + new * w_limb[:, None]
+        moved += 1
+    report['limb_skinning'] = {'parts': moved}
+    print('limb skinning', moved, flush=True)
+
+
 def rigid_legs(M, male, pose, joints, acetabula, report):
     """Long bones of the lower limb without any spline: femur + patella get one rotation + uniform
     scale (male hip->knee onto the real HRA acetabulum -> female rig knee), tibia + fibula another
@@ -256,6 +312,7 @@ def rigid_legs(M, male, pose, joints, acetabula, report):
                                             ((f'{word} radius', f'{word} ulna'), (el_m, wr_m, el_f, wr_f))):
             R = min_rotation(b_m - a_m, b_f - a_f)
             sc = np.linalg.norm(b_f - a_f) / np.linalg.norm(b_m - a_m)
+            SEGS.append((s, a_m, b_m, (lambda x, R=R, sc=sc, a_m=a_m, a_f=a_f: (sc * (R @ (x - a_m).T)).T + a_f)))
             for b in bones:
                 pid = names.get(b)
                 if pid:
@@ -473,45 +530,69 @@ def raise_breasts(skin, flat, dy):
     deg = np.array([len(n) for n in nb]); idx = np.concatenate(nb); owner = np.repeat(np.arange(len(nb)), deg)
     for _ in range(25):                     # diffuse: smooth falloff a few cm beyond the mound
         acc = np.zeros(len(P)); np.add.at(acc, owner, w[idx])
-        w = np.maximum(w, 0.5 * (w + acc / np.maximum(deg, 1))) * (np.abs(P[:, 0]) > 0.004)
+        w = np.maximum(w, 0.5 * (w + acc / np.maximum(deg, 1)))
     w = np.where(B > 0.006, 1.0, np.minimum(w, 1.0))
+    # Fade smoothly to zero over the sternum (no crease / notch at the midline).
+    w *= ml.smoothstep(0.0, 0.05, np.abs(P[:, 0]))
     lift = np.c_[np.zeros(len(P)), dy * w, np.zeros(len(P))]
-    return P + lift, Q + lift
+    # Round the mound: the parametric breast is conical. Smooth its displacement field over the
+    # mesh (Laplacian, 40 passes) and rescale to the original volume-ish height, so the breast is a
+    # dome with no apex ridge or planar faces.
+    Bv = P - Q
+    S = Bv.copy()
+    for _ in range(40):
+        acc = np.zeros_like(S); np.add.at(acc, owner, S[idx])
+        S = 0.5 * S + 0.5 * acc / np.maximum(deg, 1)[:, None]
+    k = (np.linalg.norm(Bv, axis=1).sum() / max(np.linalg.norm(S, axis=1).sum(), 1e-9))
+    S *= k
+    return Q + S + lift, Q + lift
 
 
-def breast_fat_from_pair(skin, flat, inset=0.004, back=0.008, thresh=0.002, y_range=None):
-    """Breast adipose body from the female skin vs the same body with a flat chest (same topology):
-    front = skin inset 4 mm, back = flat chest 8 mm deep (on pectoralis), region = where the breast
-    adds > 2 mm, grown by two rings. One component per side."""
+def breast_fat_from_pair(skin, flat, inset=0.0025, back=0.006, thresh=0.001, y_range=None, chest_wall=None):
+    """Breast volume = the space between the chest wall and the female skin's breast mound:
+    front = skin inset 2.5 mm (subcutaneous layer); back = the chest-wall surface (flat-chest body
+    6 mm deep: pectoralis fascia + thin retromammary fat). The thickness tapers smoothly to zero at
+    the border (mound height, sternal edge, inframammary fold, upper pole), so there are no walls,
+    straight cuts or sternal notch; the region grows laterally-upward into the axillary tail."""
     import trimesh
     P, Q = np.asarray(skin.vertices), np.asarray(flat.vertices)
     d = np.linalg.norm(P - Q, axis=1)
     sel = d > thresh
-    sel &= (P[:, 1] > np.percentile(P[sel, 1], 1) - 0.02) if sel.any() else sel
     adj = skin.vertex_neighbors
-    for _ in range(2):
+    for _ in range(4):
         grow = sel.copy()
         for i in np.where(sel)[0]:
             grow[adj[i]] = True
         sel = grow
     out = {}
     for side, sign in (('L', 1), ('R', -1)):
-        ss = sel & (P[:, 0] * sign > 0.03)           # lateral to the sternal edge, never over the sternum
-        if y_range is not None:                      # footprint: between the 2nd and 6th ribs
-            # Inframammary fold: lowest (6th rib) under the breast's centre, curving up medially and
-            # laterally (+3 cm at 7 cm from the centre) - a natural U, never a straight cut.
-            xc = np.average(P[ss, 0], weights=np.linalg.norm(P - Q, axis=1)[ss] + 1e-9) if ss.any() else 0.1 * sign
+        ss = sel & (P[:, 0] * sign > 0.012)
+        t = ml.smoothstep(0.0005, 0.012, d) * ml.smoothstep(0.018, 0.04, P[:, 0] * sign)
+        if y_range is not None:
+            # Inframammary fold: a natural U (lowest at the 6th rib under the breast's centre); the
+            # fat tapers to nothing across it instead of being cut.
+            xc = np.average(P[ss, 0], weights=d[ss] + 1e-9) if ss.any() else 0.1 * sign
             fold = y_range[0] + 6.0 * (P[:, 0] - xc) ** 2
-            ss &= (P[:, 1] >= fold) & (P[:, 1] <= y_range[1])
+            t *= ml.smoothstep(fold - 0.012, fold + 0.012, P[:, 1]) * (1 - ml.smoothstep(y_range[1] - 0.01, y_range[1] + 0.02, P[:, 1]))
+        ss &= t > 0.02
         faces = skin.faces[ss[skin.faces].all(1)]
         comps = trimesh.Trimesh(P, faces, process=False).split(only_watertight=False)
         comp = max(comps, key=lambda c: len(c.faces))
-        # map comp vertices back to global indices
         _, gi = trimesh.proximity.ProximityQuery(skin).vertex(comp.vertices)
         n = skin.vertex_normals[gi]
         nf = flat.vertex_normals[gi]
         front = P[gi] - n * inset
-        backv = Q[gi] - nf * back
+        wall = Q[gi] - nf * back
+        if chest_wall is not None:
+            # Close the fat on the REAL chest wall: cast from each front point inward along the skin
+            # normal; first hit on pectoralis / serratus / intercostals / ribs, +3 mm retromammary fat.
+            loc, ri, _ = chest_wall.ray.intersects_location(front, -n, multiple_hits=False)
+            hit = np.full(len(front), np.nan)
+            hit[ri] = np.linalg.norm(loc - front[ri], axis=1)
+            ok = np.isfinite(hit) & (hit < 0.09)
+            wall[ok] = front[ok] - n[ok] * np.maximum(hit[ok] - 0.003, 0.0)[:, None]
+        depth = np.maximum(((front - wall) * n).sum(1), 0.0)
+        backv = front - n * (0.0004 + t[gi] * depth)[:, None]
         nv = len(gi)
         be = comp.edges_sorted[trimesh.grouping.group_rows(comp.edges_sorted, require_count=1)]
         side_f = np.vstack([np.c_[be[:, 0], be[:, 1], be[:, 1] + nv], np.c_[be[:, 0], be[:, 1] + nv, be[:, 0] + nv]])

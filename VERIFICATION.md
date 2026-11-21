@@ -1,5 +1,47 @@
 # Verification — female anatomy model
 
+## Milestone 4 (phased), 2026-11-21
+
+Each phase was judged by a fresh reviewer subagent that saw only that phase's screenshots (`docs/screenshots/compare/`, `docs/screenshots/webapp/`) and checklist. A phase gets at most 3 rounds.
+
+### Phase 1 — Breasts: **FAILED after 3 rounds (0/5, 0/5, 0/5)**
+
+**Data used.**
+- The HRA set has a complete real breast for each side: interlobar fat, mammary lobes, main lactiferous ducts and sinuses, suspensory (Cooper's) ligaments, nipple, areola and areolar tubercles.
+- The real lobes, ducts, sinuses and ligaments are used, placed by one rigid transform plus one uniform scale per side.
+- The breast fat is generated: the volume between the chest wall (ray-cast onto pectoralis, serratus, intercostals and ribs, plus 3 mm) and the breast skin inset 2.5 mm, with the thickness tapering to zero at the border.
+- The areola and nipple are generated from the skin surface.
+
+**What changed across the rounds.**
+- Round 1: the fat floated in front of the chest wall. Fixed by ray-casting the fat's back surface onto the real chest wall.
+- Round 2: the fat was a wedge, the areola rim was spiky and the glands sprayed out. Changed: the mound displacement field is smoothed into a dome, the areola and nipple are single surfaces, and the gland scale is 0.8.
+
+**Round 3 still fails all five items.**
+
+| Item | Verdict | Reviewer's reason |
+|---|---|---|
+| B1 shape | FAIL | Side views still read as a truncated wedge with planar faces |
+| B2 areola and nipple | FAIL | The nipple sits as a knob on a disc; a spike under the areola in the web app |
+| B3 lobes | FAIL | Lobes cluster above the nipple; the lower breast is empty; the bundle floats in front of the chest wall in side view |
+| B4 colours | FAIL | Fat looks khaki in Blender (pale yellow in the web app); lobe and duct colours are distinct |
+| B5 artefacts | FAIL | Spur under the areola, stepped cut-outs in the fat, hard silhouette |
+
+Root cause (not fixed): the MPFB breast skin mound is conical, and the real HRA gland comes from a larger, older donor breast, so it does not fit a generated 22.5-BMI breast. **The breasts remain approximate.**
+
+### Phase 2 — Skin layer: **PASSED (3/3, round 1)**
+
+| Item | Verdict |
+|---|---|
+| S1 translucent skin with readable silhouette, anatomy visible | PASS |
+| S2 no z-fighting or sorting artefacts | PASS |
+| S3 same treatment on both bodies | PASS |
+
+Implementation:
+- The skin is shown by default at 20% opacity with a Fresnel rim light.
+- It is drawn last, with depth writes off.
+- Picking skips the skin whenever solid structures are visible.
+- A "Skin opacity" slider (0–100%) sits in the systems panel, is stored in localStorage behind try/catch, and has a 44 px touch target on mobile.
+
 ## Version 3 (polish milestone), 2026-11-21
 
 Produced by `python scripts/build-anatomy.py --sex female`, which builds the model and runs the validators and gates A and B. Every number comes from `work/female/measurements.json`, `gate_b.json` and `report.json`.

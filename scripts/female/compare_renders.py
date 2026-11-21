@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'docs' / 'screenshots' / 'compare'
 TMP = Path(tempfile.gettempdir()) / 'ha-compare'
 VISIBLE = {'cardiac', 'sensory', 'skeletal', 'muscular', 'arterial', 'venous', 'nervous', 'respiratory', 'digestive', 'urinary',
-           'lymphatic', 'endocrine', 'reproductive', 'connective', 'adipose', 'erectile'}
+           'lymphatic', 'endocrine', 'reproductive', 'connective', 'adipose', 'erectile', 'mammary', 'lactiferous'}
 
 
 def categories(p, c):
@@ -32,6 +32,8 @@ def categories(p, c):
     out = []
     if s in VISIBLE:
         out.append('all-systems')
+    if s in VISIBLE or n == 'skin':
+        out.append('all-systems-skin')
     if n == 'skin':
         out.append('skin-only')
     if s == 'skeletal':
@@ -48,8 +50,8 @@ def categories(p, c):
         out.append('hand-left')
     if c[1] > 1.38 and s in ('skeletal', 'sensory') and n != 'skin':
         out.append('head-skeleton')
-    in_breast = 1.0 < c[1] < 1.45 and abs(c[0]) < 0.24
-    if in_breast and (s in ('reproductive', 'adipose', 'skeletal') or re.search(r'pectoralis|serratus|intercostal|nipple|areola', n)):
+    in_breast = 1.0 < c[1] < 1.36 and abs(c[0]) < 0.24
+    if in_breast and (s in ('mammary', 'lactiferous', 'adipose', 'skeletal') or 'suspensory' in n or re.search(r'pectoralis|serratus|intercostal|nipple|areola', n)):
         out.append('breast-fat-on')
         if s != 'adipose':
             out.append('breast-fat-off')
@@ -62,9 +64,10 @@ def categories(p, c):
 
 
 JOB_VIEWS = {'perineum-closeup': ['front', 'side', 'back', 'oblique', 'below'], 'hand-left': ['palm', 'dorsum', 'front', 'back'], 'head-skeleton': ['front', 'side'],
-             'breast-fat-on': ['front', 'side'], 'breast-fat-off': ['front', 'side'], 'vulva-closeup': ['front', 'below', 'oblique'],
+             'breast-fat-on': ['front', 'side', 'oblique'], 'breast-fat-off': ['front', 'side', 'oblique'], 'vulva-closeup': ['front', 'below', 'oblique'],
              'uterus-isolated': ['front', 'side', 'oblique']}
-JOB_ALPHA = {'vulva-closeup': {'integumentary': 0.4}}
+JOB_ALPHA = {'vulva-closeup': {'integumentary': 0.4}, 'breast-fat-on': {'adipose': 0.55},
+             'all-systems-skin': {'integumentary': 0.2}}
 NO_FRAME = {'vulva-closeup': {'integumentary'}}   # systems that do not set the camera framing
 
 
