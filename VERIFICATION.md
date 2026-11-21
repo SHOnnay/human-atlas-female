@@ -58,6 +58,38 @@ Fixes that got here:
 - The MPFB head skin is enlarged about the skull centre, blended to zero across the neck and capped at 1.10, until less than 0.5% of skull vertices are outside it.
 - Any residual protrusion of the head group (lips, nose tip) is reported, not hidden by breaking the skull.
 
+### Phase 4 — Remaining fails: **1/5 after 3 rounds (0/5 → 0/5 → 1/5)**
+
+| Item | Final verdict | Reviewer's reason |
+|---|---|---|
+| P1 hands and forearms | **FAIL** | Forearm muscles form a stretched loop above the wrist; hand bones cluster |
+| P2 clitoris, crura, bulbs | **FAIL** | Labial/bulb pieces read as hanging below the vulva outline; erectile plum not distinct enough in Blender |
+| P3 uterus vs bladder | **FAIL** | The anteverted uterus covers the ochre bladder in the front views |
+| P4 deltoids and pectorals | PASS | Deltoids reduced radially (×0.75) toward the humeral axis |
+| P5 no protrusions or smeared strips | **FAIL** | Sheet-like strips along the femurs; forearm sheets |
+
+What changed in this phase:
+- **Limbs:** limb soft tissue now follows the rigid long bones (bone-attached skinning).
+- **Pelvic connective tissue:** the uterine ligaments and peritoneal pouches are connective tissue, so the 14 cm broad ligament no longer hides the bladder.
+- **Generated vulval parts:** kept at least 2 mm inside the skin. 0 generated parts protrude.
+
+**Still failing:** the forearm and thigh "sheets" (warped BodyParts3D fasciae and long muscles), crus and bulb placement, and the bladder's visibility behind the uterus.
+
+### Final gates (milestone 4)
+
+**Containment** (after simplification, packaged meshes):
+- 96 of 2,325 parts have some vertices through the skin — all warped BodyParts3D parts, including head parts left in place by design.
+- 0 floating parts.
+- 0 generated parts protrude.
+
+**Stretch:**
+- 6,979 of 2,169,868 warped triangles (0.32%) are over 2× their source; v3 had 12,953.
+- The zero target is not met.
+
+**Checks:**
+- `npm run check`, both validators, `npm run build` and `scripts/verify-browser.py` (headless Chromium) pass.
+- The male package files are unchanged.
+
 ## Version 3 (polish milestone), 2026-11-21
 
 Produced by `python scripts/build-anatomy.py --sex female`, which builds the model and runs the validators and gates A and B. Every number comes from `work/female/measurements.json`, `gate_b.json` and `report.json`.

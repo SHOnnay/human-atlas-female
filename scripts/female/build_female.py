@@ -133,7 +133,7 @@ def stretch_report(M, male, report, limit=2.0):
     log('stretch', report['stretch']['triangles_over'], 'of', total, 'triangles over', limit, 'x;', len(bad), 'parts')
 
 
-def female_shoulder_bulk(M, report, factor=0.86):
+def female_shoulder_bulk(M, report, factor=0.75):
     """Phase 4: reduce deltoid bulk toward female averages - each deltoid is scaled radially toward
     the humeral axis near the shoulder (keeps its attachments on clavicle/acromion/humerus roughly in
     place) by `factor`; the later containment keeps a subcutaneous gap under the skin."""
@@ -1433,6 +1433,14 @@ def main():
     keep_inside_skin(shell, M, F, report)
     G = generate(F, M, skin, ctx['lm_pf'], report, args.blender)
     check_generated(G, F, M, shell, report)
+    # Phase 4: every generated vulval / perineal part stays >= 2 mm inside the body surface.
+    gin = {}
+    for stem, g in G.items():
+        bad = int(shell.outside(g['pos'], 0.002).sum())
+        if bad:
+            g['pos'], _, left = shell.keep_inside(g['pos'], margin=0.002, radius=0.006)
+            gin[stem] = {'vertices_outside': bad, 'left_outside': left}
+    report['generated_inside'] = gin
     keep_inside_skin(shell, M, F, report)
     fv, fi = gluteofemoral_fat(skin, ctx['lm_f'], ctx['lm_pf'])
     extra = [({'id': 'GEN_subcutaneous_fat_gluteofemoral', 'name': 'Subcutaneous fat of hips, buttocks and thighs (female distribution)',
