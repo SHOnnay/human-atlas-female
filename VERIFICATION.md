@@ -42,6 +42,22 @@ Implementation:
 - Picking skips the skin whenever solid structures are visible.
 - A "Skin opacity" slider (0–100%) sits in the systems panel, is stored in localStorage behind try/catch, and has a 44 px touch target on mobile.
 
+### Phase 3 — Head: **4/5 after 3 rounds (0/5 → 2/5 → 4/5)**
+
+| Item | Final verdict |
+|---|---|
+| H1 skull is one intact rigid unit | PASS |
+| H2 teeth in sockets, jaw closed | PASS |
+| H3 orbits not crushed, eyes in place | PASS |
+| H4 head proportion and smooth head skin | PASS |
+| H5 natural neck | **FAIL** — strap-like structures run from the neck to the shoulders/scapula |
+
+Fixes that got here:
+- The skull, mandible, teeth, eyes, ears and brain move as ONE rigid group with one transform.
+- They are never shifted part by part, and never smoothed by the stretch relaxation.
+- The MPFB head skin is enlarged about the skull centre, blended to zero across the neck and capped at 1.10, until less than 0.5% of skull vertices are outside it.
+- Any residual protrusion of the head group (lips, nose tip) is reported, not hidden by breaking the skull.
+
 ## Version 3 (polish milestone), 2026-11-21
 
 Produced by `python scripts/build-anatomy.py --sex female`, which builds the model and runs the validators and gates A and B. Every number comes from `work/female/measurements.json`, `gate_b.json` and `report.json`.

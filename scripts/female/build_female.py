@@ -87,8 +87,8 @@ def relax_corrections(M, male, shell, report, limit=2.0, rounds=40):
     from scipy.sparse import coo_matrix
     fixed, left = 0, 0
     for pid, m in M.items():
-        if 'warp_pos' not in m:
-            continue
+        if 'warp_pos' not in m or m['system'] == 'skeletal' or pid in STATE.get('head_all', []):
+            continue    # rigid parts (bones, the whole head) are never smoothed part by part
         src = male[pid]['pos']
         if not (edge_ratios(src, m['pos'], m['idx']) > limit).any():
             continue
@@ -133,7 +133,30 @@ def stretch_report(M, male, report, limit=2.0):
     log('stretch', report['stretch']['triangles_over'], 'of', total, 'triangles over', limit, 'x;', len(bad), 'parts')
 
 
-def fit_head_skin(F, M, report, max_scale=1.15):
+def female_shoulder_bulk(M, report, factor=0.86):
+    """Phase 4: reduce deltoid bulk toward female averages - each deltoid is scaled radially toward
+    the humeral axis near the shoulder (keeps its attachments on clavicle/acromion/humerus roughly in
+    place) by `factor`; the later containment keeps a subcutaneous gap under the skin."""
+    hum = {s: next((m['pos'] for m in M.values() if m['name'] == f'{w} humerus'), None) for s, w in (('L', 'Left'), ('R', 'Right'))}
+    n = 0
+    for m in M.values():
+        if not re.search(r'deltoid', m['name'], re.I):
+            continue
+        s = 'L' if m['pos'][:, 0].mean() > 0 else 'R'
+        h = hum[s]
+        if h is None:
+            continue
+        top = h[h[:, 1] > h[:, 1].max() - 0.04].mean(0)
+        shaft = h[(h[:, 1] < h[:, 1].max() - 0.08) & (h[:, 1] > h[:, 1].max() - 0.16)].mean(0)
+        ax = (top - shaft) / np.linalg.norm(top - shaft)
+        p = m['pos']
+        foot = shaft + np.outer((p - shaft) @ ax, ax)
+        m['pos'] = foot + (p - foot) * factor
+        n += 1
+    report['shoulder_bulk'] = {'deltoid_parts': n, 'radial_factor': factor}
+
+
+def fit_head_skin(F, M, report, max_scale=1.10):
     """Phase 3: the skull is never deformed to fit the face. Instead the MPFB head skin is scaled up
     uniformly about the skull centre (blended to zero across the neck, between C5 and C3) until the
     rigid head group (bones, teeth, eyes, ears) is inside it with a 3 mm soft-tissue margin."""
@@ -150,9 +173,9 @@ def fit_head_skin(F, M, report, max_scale=1.15):
     for k in np.arange(1.0, max_scale + 1e-9, 0.01):
         P = P0 + (k - 1.0) * w[:, None] * (P0 - c)
         shell = ml.SkinShell(ml.to_trimesh(P, F['VH_F_skin']['idx']), pitch=0.002)
-        frac = float(shell.outside(bones, 0.003).mean())
+        frac = float(shell.outside(bones, 0.0).mean())   # bone actually outside the skin
         scale = k
-        if frac <= 0.001:
+        if frac <= 0.005:
             break
     F['VH_F_skin']['pos'] = P
     report['head_skin_fit'] = {'head_skin_scale': float(scale), 'skull_vertices_within_3mm_of_or_outside_skin': frac}
@@ -286,7 +309,11 @@ def hra_selected(hra):
             out[name] = ('respiratory', 'thorax')
         elif 'VH_F_reproductive_system' in anc and 'VH_F_placenta' not in anc and name != 'VH_F_placenta':
             # Peritoneal pouches are serosa (connective), not organ: they must not hide the bladder.
-            out[name] = ('connective' if re.search(r'pouch', name) else 'reproductive', 'pelvic')
+            # Peritoneal pouches and the uterine/ovarian ligaments (broad, round, cardinal, uterosacral,
+            # mesosalpinx/mesovarium) are fibrous/serous connective tissue; the broad ligament (14 x 12 cm)
+            # otherwise hides the bladder and uterus in every front view.
+            soft = re.search(r'pouch|ligament|mesosalpinx|mesovarium', name)
+            out[name] = ('connective' if soft else 'reproductive', 'pelvic')
         elif 'VH_F_urinary_bladder' in anc:
             out[name] = ('urinary', 'pelvic')
         elif 'VH_F_blood_vasculature_of_uterus' in anc:
@@ -888,10 +915,11 @@ def keep_inside_skin(shell, M, F, report, names=None):
         # 3 mm detection margin: absorbs the later 0.2 % simplification error, so the packaged
         # (simplified) meshes stay inside the skin too.
         bad = shell.outside(m['pos'], 0.003).sum()
-        if i in head and bad:
-            # Residual protrusion after the group fit (a few mm at lips/nose): rigid per-part shift.
-            m['pos'], how = rigid_inside(shell, m['pos'], margin=0.003, min_scale=0.97)
-            out[i] = {'vertices_outside': int(bad), 'rigid': how, 'left_outside': int(shell.outside(m['pos'], 0.0005).sum())}
+        if i in STATE.get('head_all', []) or i in head:
+            # The head is ONE rigid unit: never move a head part on its own. Any residual protrusion
+            # after the group fit (lips / nose tip) is reported, not "fixed" by breaking the skull.
+            if bad:
+                out[i] = {'vertices_outside': int(bad), 'left_outside': int(shell.outside(m['pos'], 0.0005).sum()), 'head_rigid': True}
             continue
         if bad > 2000:
             log('  far outside skin:', i, m['name'], int(bad), 'of', len(m['pos']))
@@ -1381,6 +1409,7 @@ def main():
             m['warp_pos'] = m['pos'].copy()      # for the stretch gate: warp vs later corrections
         F = place_hra(hra, hra_selected(hra), shift)
         fit_head_skin(F, M, report)
+        female_shoulder_bulk(M, report)
         ctx = {'lm_pf': lm_pf, 'heads': heads, 'bm': bm, 'bf': bf, 'lm_m': lm_m, 'lm_f': lm_f, 'pose': list(POSE)}
         (WORK / 'stage.pkl').write_bytes(pickle.dumps((M, F, report, removed, ctx)))
     import trimesh

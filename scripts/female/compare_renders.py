@@ -48,7 +48,7 @@ def categories(p, c):
     # v3 close-ups.
     if 0.55 < c[1] < 0.83 and c[0] > 0.17 and s not in ('integumentary',):
         out.append('hand-left')
-    if c[1] > 1.38 and s in ('skeletal', 'sensory') and n != 'skin':
+    if c[1] > 1.30 and s in ('skeletal', 'sensory') and n != 'skin':
         out.append('head-skeleton')
     in_breast = 1.0 < c[1] < 1.36 and abs(c[0]) < 0.24
     if in_breast and (s in ('mammary', 'lactiferous', 'adipose', 'skeletal') or 'suspensory' in n or re.search(r'pectoralis|serratus|intercostal|nipple|areola', n)):
@@ -66,7 +66,7 @@ def categories(p, c):
 JOB_VIEWS = {'perineum-closeup': ['front', 'side', 'back', 'oblique', 'below'], 'hand-left': ['palm', 'dorsum', 'front', 'back'], 'head-skeleton': ['front', 'side'],
              'breast-fat-on': ['front', 'side', 'oblique'], 'breast-fat-off': ['front', 'side', 'oblique'], 'vulva-closeup': ['front', 'below', 'oblique'],
              'uterus-isolated': ['front', 'side', 'oblique']}
-JOB_ALPHA = {'vulva-closeup': {'integumentary': 0.4}, 'breast-fat-on': {'adipose': 0.55},
+JOB_ALPHA = {'vulva-closeup': {'integumentary': 0.4}, 'breast-fat-on': {'adipose': 0.55}, 'all-systems': {'adipose': 0.5},
              'all-systems-skin': {'integumentary': 0.2}}
 NO_FRAME = {'vulva-closeup': {'integumentary'}}   # systems that do not set the camera framing
 
