@@ -35,7 +35,7 @@ for(const filename of targets){
   // Every structure is labelled scan-derived / warped / generated, consistently with its source.
   const expect={hra:'scan-derived',bp3d:'warped',generated:'generated',mpfb:'generated'};
   for(const p of atlas.parts){assert.ok(atlas.sources[p.source],`${p.id}: unknown source ${p.source}`);assert.equal(p.accuracy,expect[p.source],`${p.id}: accuracy`);if(p.accuracy!=='scan-derived')assert.ok(p.note,`${p.id}: needs a provenance note`);}
-  const skin=atlas.parts.filter(p=>p.name==='Skin');assert.equal(skin.length,1);assert.equal(skin[0].source,'mpfb','the body surface must be the MPFB2 average female (v3)');
+  const skin=atlas.parts.filter(p=>p.name==='Skin');assert.equal(skin.length,1);assert.ok(['hra','mpfb'].includes(skin[0].source),'the body surface must be the VHF scan (hra) or the MPFB body');
   // Breast adipose is its own system; the clitoris and vestibular bulbs are erectile tissue.
   assert.ok(atlas.parts.filter(p=>/breast adipose/i.test(p.name)).every(p=>p.system==='adipose')&&atlas.parts.some(p=>p.system==='adipose'),'breast adipose system');
   assert.ok(atlas.parts.filter(p=>/clitoris|bulb of vestibule/i.test(p.name)&&!/prepuce/i.test(p.name)).every(p=>p.system==='erectile'),'erectile tissue system');
@@ -43,6 +43,8 @@ for(const filename of targets){
   for(const name of ['Hip bone','Left hip bone','Right hip bone'])if(atlas.concepts.some(c=>c.name===name))assert.ok(atlas.concepts.find(c=>c.name===name).elements.every(id=>id.startsWith('VH_F_')),`${name} must be the real HRA pelvis`);
   const male=atlas.parts.filter(p=>MALE_ONLY.test(p.name));assert.deepEqual(male.map(p=>p.name),[],'male-only structures in the female model');
   for(const c of atlas.concepts)assert.ok(!MALE_ONLY.test(c.name),`male-only concept ${c.name}`);
+  // On the real VHF body the gluteofemoral fat is part of her own (scan-derived) skin, not a separate part.
+  if(skin[0].source==='hra')delete FEMALE_REQUIRED['gluteofemoral fat'];
   const missing=Object.entries(FEMALE_REQUIRED).filter(([,re])=>!atlas.parts.some(p=>re.test(p.name)));assert.deepEqual(missing.map(([k])=>k),[],'female checklist');
   // Search (the UI and WebMCP filter concept names) must find each checklist item.
   for(const [k,re] of Object.entries(FEMALE_REQUIRED))assert.ok(atlas.concepts.some(c=>re.test(c.name)),`search cannot find ${k}`);

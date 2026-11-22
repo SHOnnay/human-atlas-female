@@ -31,6 +31,9 @@ def main():
     ap.add_argument('--sex', choices=['male', 'female'], required=True)
     ap.add_argument('--hra', default=str(ROOT / 'work/sources/hra/3d-vh-f-united.glb'))
     ap.add_argument('--blender', help='Blender 4.2 executable (default: $BLENDER, work/tools, PATH)')
+    ap.add_argument('--body', choices=['vhf', 'mpfb'], default='vhf', help='female body: vhf (one real donor) or mpfb (v4)')
+    ap.add_argument('--ts-python', default=os.environ.get('TS_PYTHON', 'python'),
+                    help='Python of an environment with TotalSegmentator, idc-index, SimpleITK (VHF CT steps)')
     ap.add_argument('male_inputs', nargs='*', help='male only: OBJ_DIR CONCEPT_MAP SYSTEM_MAP')
     a = ap.parse_args()
     if a.sex == 'male':
@@ -42,7 +45,20 @@ def main():
     else:
         if a.blender:
             os.environ['BLENDER'] = a.blender
-        run(sys.executable, '-I', 'scripts/female/build_female.py', '--hra', a.hra)
+        if a.body == 'vhf':
+            # One real body: VHF CT (IDC, NLM) -> TotalSegmentator "total" (Apache-2.0) -> VHF targets in the
+            # HRA frame -> BodyParts3D registration. The first three need the TotalSegmentator environment
+            # (--ts-python); their outputs are cached under work/vhf/.
+            if not (ROOT / 'work/vhf/targets').exists():
+                run(a.ts_python, 'scripts/female/vhf_ct.py')
+                ct = ROOT / 'work/vhf'
+                for n in ('head_to_femur', 'femur_to_toes'):
+                    run(Path(a.ts_python).with_name('TotalSegmentator'), '-i', ct / f'ct_{n}.nii.gz', '-o', ct / f'seg_{n}',
+                        '--task', 'total', '--ml')
+                run(a.ts_python, 'scripts/female/vhf_targets.py')
+            if not (ROOT / 'work/vhf/registered.pkl').exists():
+                run(sys.executable, 'scripts/female/vhf_register.py')
+        run(sys.executable, '-I', 'scripts/female/build_female.py', '--hra', a.hra, '--body', a.body)
         run('node', 'scripts/optimize-anatomy.mjs', 'female/atlas.json')
         run('node', 'scripts/compress-models.mjs', 'female/atlas.json')
         run('node', 'scripts/validate-atlas.mjs', 'female/atlas.json')

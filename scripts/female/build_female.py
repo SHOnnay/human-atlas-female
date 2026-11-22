@@ -120,6 +120,8 @@ def stretch_report(M, male, report, limit=2.0):
     total = 0
     by_warp = 0
     for pid, m in M.items():
+        if m.get('scan_derived') or len(m['pos']) != len(male[pid]['pos']):
+            continue            # real VHF geometry shown as-is: not a warped triangle
         r = edge_ratios(male[pid]['pos'], m['pos'], m['idx']).max(1)
         total += len(r)
         k = int((r > limit).sum())
@@ -194,8 +196,11 @@ def rigid_head(M, male, report):
     # in the parametric face's palpebral openings rather than being pushed in by the skin.
     eyes_m = [male[pid]['pos'].mean(0) for pid, m in M.items() if m['name'] in ('Left sclera', 'Right sclera')]
     names_eye = [m['name'] for pid, m in M.items() if m['name'] in ('Left sclera', 'Right sclera')]
+    if POSE[1] is None:                 # VHF body: no rig eye joints - fit on the head skin pairs only
+        eyes_m, names_eye = [], []
     eyes_f = [POSE[1]['eye.L' if n.startswith('Left') else 'eye.R']['head'] for n in names_eye]
-    S = np.vstack([src[head]] + [e[None] for e in eyes_m]); D = np.vstack([dst[head]] + [np.asarray(e)[None] for e in eyes_f])
+    S = np.vstack([src[head]] + [e[None] for e in eyes_m]) if eyes_m else src[head]
+    D = np.vstack([dst[head]] + [np.asarray(e)[None] for e in eyes_f]) if eyes_f else dst[head]
     W = np.r_[np.ones(int(head.sum())), np.full(len(eyes_m), 40.0)]
     s, R, t = ml.umeyama(S, D, W)
     resid = np.linalg.norm(ml.apply_similarity(src[head], s, R, t) - dst[head], axis=1)
@@ -257,7 +262,7 @@ HRA_PELVIS = {'hip_L': ['VH_F_ilium_compact_bone_L', 'VH_F_ischium_compact_bone_
               'sacrum': ['VH_F_sacrum']}
 MALE_REPLACED = {  # BodyParts3D element -> HRA replacement (concept membership is transferred)
     'FJ3288': HRA_PELVIS['hip_L'], 'FJ3152': HRA_PELVIS['hip_R'], 'FJ3393': HRA_PELVIS['sacrum'],
-    'FJ2810': ['MPFB_skin'],
+    'FJ2810': ['female_skin'],
 }
 MALE_DROPPED = {'FJ2812': 'Eyebrow (male surface detail; the female body surface replaces the head surface)',
                 'FJ2813': 'Hair of head (male hairstyle; not part of the female body surface)',
@@ -1273,6 +1278,11 @@ def write_package(M, F, G, extra, atlas, removed, report):
         note = 'Warped approximation: BodyParts3D male geometry carried into the HRA female body by a landmark thin-plate-spline warp.'
         if re.search(r'thyroid cartilage|mandible|frontal bone|larynx', p['name'], re.I):
             note += ' Brow, jaw and laryngeal prominence follow the female head and neck surface (warped approximation).'
+        if m.get('scan_derived'):
+            add({'id': p['id'], 'name': p['name'], 'conceptId': p['conceptId'], 'system': p['system'], 'source': 'hra',
+                 'accuracy': 'scan-derived', 'note': f"Scan-derived: the real Visible Human Female bone ({m['scan_derived']}), "
+                 'shown in place of the BodyParts3D shape (same ID, name and system).'}, m['pos'], None, m['idx'])
+            continue
         add({'id': p['id'], 'name': p['name'], 'conceptId': p['conceptId'], 'system': p['system'], 'source': 'bp3d',
              'accuracy': 'warped', 'note': note}, m['pos'], None, m['idx'])
     xref = xrefs['uberon']
@@ -1291,8 +1301,11 @@ def write_package(M, F, G, extra, atlas, removed, report):
              'accuracy': 'scan-derived'}
         if f.get('seal'):
             e['seal'] = True
-        if n == 'VH_F_skin':
-            e.update(id='MPFB_skin', source='mpfb', accuracy='generated', uberon='',
+        if n == 'VH_F_skin' and STATE.get('body') == 'vhf':
+            e.update(id='female_skin', note='Scan-derived body surface of the Visible Human Female (HRA), the one real donor '
+                     'of this model. Courtesy of the U.S. National Library of Medicine.')
+        elif n == 'VH_F_skin':
+            e.update(id='female_skin', source='mpfb', accuracy='generated', uberon='',
                      note='Generated body surface: MPFB2 (MakeHuman, CC0) parametric average adult female (1.63 m, BMI 22.5), '
                           'posed by its rig into the reference pose; schematic pudendal cleft. Not scan-derived.')
         add(e, f['pos'], f['nrm'], f['idx'])
@@ -1330,7 +1343,7 @@ def write_package(M, F, G, extra, atlas, removed, report):
             continue
         for anc in f['hra']['ancestor_names']:
             groups.setdefault(anc, []).append(n)
-    add_concept('FMA7163', 'Skin', ['MPFB_skin'])
+    add_concept('FMA7163', 'Skin', ['female_skin'])
     for g, members in groups.items():
         if g in SKIP_GROUPS:
             continue
@@ -1350,10 +1363,14 @@ def write_package(M, F, G, extra, atlas, removed, report):
     add_concept('FMA16587', 'Left hip bone', HRA_PELVIS['hip_L'])
     add_concept('HRA:VH_F_pelvis', 'Female pelvis', HRA_PELVIS['hip_L'] + HRA_PELVIS['hip_R'] + HRA_PELVIS['sacrum'] + ['VH_F_coccyx'])
     add_concept('GEN:breasts', 'Breasts', [n for n, f in F.items() if f['group'].startswith('breast')])
+    vhf = STATE.get('body') == 'vhf'
     manifest = {
-        'version': 'Human Atlas female 3.0 (MPFB2 average female body + HRA pelvis/organs + warped BodyParts3D + generated)',
-        'sex': 'female', 'source': 'MPFB2/MakeHuman CC0 (body surface); HRA 3D Reference Organ Set for Female v1.5 (pelvis, pelvic organs, lungs, breast glands); BodyParts3D 4.0 (warped); generated structures',
-        'scope': 'Adult female reference assembly: average adult female body (MPFB2, BMI 22.5) with the scan-derived Visible Human Female pelvis and organs (HRA).',
+        'version': 'Human Atlas female 5.0 (one real body: Visible Human Female)' if vhf else 'Human Atlas female 3.0 (MPFB2 average female body + HRA pelvis/organs + warped BodyParts3D + generated)',
+        'sex': 'female', 'source': ('Visible Human Female (U.S. National Library of Medicine): HRA 3D Reference Organ Set for Female v1.5 '
+                                   '(skin, pelvis, organs, breasts, lungs) and VHF CT (TotalSegmentator targets); BodyParts3D 4.0 registered/warped; generated structures') if vhf else
+                                  'MPFB2/MakeHuman CC0 (body surface); HRA 3D Reference Organ Set for Female v1.5 (pelvis, pelvic organs, lungs, breast glands); BodyParts3D 4.0 (warped); generated structures',
+        'scope': ('Female body based on one real donor: Visible Human Female (age 59), U.S. National Library of Medicine.') if vhf else
+                 'Adult female reference assembly: average adult female body (MPFB2, BMI 22.5) with the scan-derived Visible Human Female pelvis and organs (HRA).',
         'sources': SOURCES, 'accuracyNotes': ACCURACY_NOTES, 'parts': parts, 'concepts': concepts, 'chunks': chunks,
         'triangles': total, 'build': {'removedMaleParts': sorted(removed), 'labelCorrections': fixes, 'report': 'work/female/report.json'},
     }
@@ -1366,19 +1383,244 @@ def write_package(M, F, G, extra, atlas, removed, report):
 
 # ============================================================== driver
 
+# ============================================================== VHF body (milestone 5)
+
+def build_warp_vhf(atlas, male, hra, shift, report, registered, every=6):
+    """Warp onto the ONE real body (Visible Human Female): the Version 2 correspondences on the real
+    HRA VHF skin and pelvis/leg bones, PLUS dense pairs from every BodyParts3D structure that was
+    registered onto its VHF CT / HRA shape and passed the gate (every `every`-th vertex)."""
+    import trimesh
+    by_name = {p['name']: p['id'] for p in atlas['parts']}
+    mpos = lambda name: male[by_name[name]]['pos']
+    hpos = lambda n: hra[n]['pos'] + shift
+    m_skin = ml.to_trimesh(male['FJ2810']['pos'], male['FJ2810']['idx'])
+    pos, nrm, idx = ml.weld(hra['VH_F_skin']['pos'] + shift, hra['VH_F_skin']['nrm'], hra['VH_F_skin']['idx'])
+    f_skin = trimesh.Trimesh(pos, idx.reshape(-1, 3), process=False)
+    C = bw.Correspondences()
+    m_hl, _ = ml.femoral_head_centre(mpos('Left femur')); m_hr, _ = ml.femoral_head_centre(mpos('Right femur'))
+    f_hl, _ = ml.femoral_head_centre(hpos('VH_F_femur_L')); f_hr, _ = ml.femoral_head_centre(hpos('VH_F_femur_R'))
+    lm_pm = ml.pelvis_landmarks(mpos('Left hip bone'), mpos('Right hip bone'), mpos('Sacrum'), m_hl, m_hr)
+    fh = {k: np.vstack([hpos(n) for n in v]) for k, v in HRA_PELVIS.items()}
+    lm_pf = ml.pelvis_landmarks(fh['hip_L'], fh['hip_R'], fh['sacrum'], f_hl, f_hr)
+    keys = sorted(set(lm_pm) & set(lm_pf))
+    C.add(np.array([lm_pm[k] for k in keys]), np.array([lm_pf[k] for k in keys]), 'pelvis')
+    names_m = {s: {'femur': f'{w} femur', 'tibia': f'{w} tibia', 'fibula': f'{w} fibula', 'patella': f'{w} patella'} for s, w in (('L', 'Left'), ('R', 'Right'))}
+    names_f = {s: {'femur': f'VH_F_femur_{s}', 'tibia': f'VH_F_tibia_{s}', 'fibula': f'VH_F_fibula_{s}', 'patella': f'VH_F_patella_{s}'} for s in 'LR'}
+    bm = bw.bone_points(mpos, names_m['L'], names_m['R'])
+    bf = bw.bone_points(hpos, names_f['L'], names_f['R'])
+    bk = sorted(bm)
+    C.add(np.array([bm[k] for k in bk]), np.array([bf[k] for k in bk]), 'leg-bones')
+    lm_m, lm_f = bw.body_levels(m_skin), bw.body_levels(f_skin)
+    lm_m['ankle'] = (bm['tib_bottom_L'][1] + bm['tib_bottom_R'][1]) / 2
+    lm_f['ankle'] = (bf['tib_bottom_L'][1] + bf['tib_bottom_R'][1]) / 2
+    # Dense pairs from the registered VHF structures (bones, organs, gluteals, iliopsoas, autochthon...).
+    n_reg = 0
+    for pid, r in registered.items():
+        if not r.get('gate') or pid not in male:
+            continue
+        C.add(male[pid]['pos'][::every], r['pos'][::every], 'vhf-registered')
+        n_reg += 1
+    boxes = []
+    for side in 'LR':
+        pts = np.vstack([hpos(n) for n, (s, g) in hra_selected(hra).items() if g == 'breast_' + side])
+        boxes.append((pts.min(0) - [0.01, 0.01, 0.0], pts.max(0) + 0.01))
+    fat_band = (lm_f['crotch'] - 0.30, lm_pf['iliac_crest_L'][1] + 0.05)
+    bw.skin_correspondences(m_skin, f_skin, lm_m, lm_f, C, boxes, 0.008, fat_band, f_skin.vertex_normals)
+    src, dst = C.arrays()
+    _, uniq = np.unique(np.round(src, 4), axis=0, return_index=True)
+    uniq = np.sort(uniq)
+    src, dst = src[uniq], dst[uniq]
+    tags = np.array(C.tags)[uniq]
+    warp = bw.tps(src, dst, smoothing=1e-3)
+    resid = np.linalg.norm(warp(src) - dst, axis=1) * 1000
+    report['warp'] = {'body': 'vhf', 'correspondences': int(len(src)), 'registered_structures_used': n_reg,
+                      'by_group': {t: int((tags == t).sum()) for t in sorted(set(tags))},
+                      'residual_mm_mean': float(resid.mean()), 'residual_mm_max': float(resid.max())}
+    log('warp', json.dumps(report['warp']))
+    STATE['skin_pairs'] = (src[tags == 'skin'], dst[tags == 'skin']) if (tags == 'skin').any() else None
+    return warp, f_skin, lm_pf, (m_hl, m_hr, f_hl, f_hr), bm, bf, lm_m, lm_f
+
+
+def apply_registered(M, registered, hra, shift, report):
+    """Structures that passed the gate take their registered (real VHF) shape exactly. Long leg bones
+    that failed the gate are shown as the real HRA VHF bone itself (scan-derived), keeping the
+    BodyParts3D ID, name and system."""
+    used, scan = 0, []
+    hra_bones = {f'{sw} {b}': f'VH_F_{b}_{s}' for sw, s in (('Left', 'L'), ('Right', 'R')) for b in ('femur', 'patella', 'tibia', 'fibula')}
+    for pid, r in registered.items():
+        if pid not in M:
+            continue
+        if r.get('gate'):
+            M[pid]['pos'] = r['pos']; used += 1
+        elif M[pid]['name'] in hra_bones:
+            h = hra[hra_bones[M[pid]['name']]]
+            p, n, i = ml.weld(h['pos'] + shift, h['nrm'], h['idx'])
+            M[pid].update(pos=p, idx=i, scan_derived='HRA ' + hra_bones[M[pid]['name']])
+            scan.append(M[pid]['name'])
+    report['vhf_registered_applied'] = {'gate_pass_applied': used, 'shown_as_scan': scan}
+    log('vhf registered applied', used, 'scan-derived bones', len(scan))
+
+
+FASCIA = re.compile(r'fascia|aponeuros|iliotibial|tract$|retinaculum', re.I)
+
+
+def refit_fasciae(M, report, offset=0.0008):
+    """Fasciae / aponeuroses are never warped freely: each is re-fitted as a thin shell on the outer
+    surface of the muscles it covers (closest muscle surface point + 0.8 mm along that face's normal)."""
+    import trimesh
+    muscles = [m for m in M.values() if m['system'] == 'muscular' and not FASCIA.search(m['name'])]
+    n = 0
+    for m in M.values():
+        if not FASCIA.search(m['name']):
+            continue
+        lo, hi = m['pos'].min(0) - 0.03, m['pos'].max(0) + 0.03
+        near = [q for q in muscles if np.all(q['pos'].max(0) > lo) and np.all(q['pos'].min(0) < hi)]
+        if not near:
+            continue
+        U = trimesh.util.concatenate([ml.to_trimesh(q['pos'], q['idx']) for q in near])
+        cp, d, tri = trimesh.proximity.closest_point(U, m['pos'])
+        out = m['pos'] - cp
+        nrm = U.face_normals[tri]
+        sgn = np.sign((out * nrm).sum(1)); sgn[sgn == 0] = 1
+        new = cp + nrm * sgn[:, None] * offset
+        # only snap vertices that are near a muscle (within 2 cm); others keep the warp
+        w = (1 - ml.smoothstep(0.01, 0.02, d))[:, None]
+        m['pos'] = m['pos'] * (1 - w) + new * w
+        n += 1
+    report['fascia_refit'] = {'parts': n}
+    log('fascia refit', n)
+
+
+def vhf_breast_fat(F, M, skin, report, inset=0.0025):
+    """Breast fat on the ONE real body: the volume between the real HRA VHF breast skin (inset 2.5 mm)
+    and the real chest wall (ray-cast onto pectoralis / serratus / intercostals / ribs, + 3 mm
+    retromammary fat). Region = skin over the real HRA breast (within 1.5 cm of its glandular / fat
+    parts); thickness tapers smoothly to zero toward the border (no planar faces, no hard edge)."""
+    import trimesh
+    from scipy.spatial import cKDTree
+    wall = trimesh.util.concatenate([ml.to_trimesh(m['pos'], m['idx']) for m in M.values()
+                                     if re.search(r'pectoralis|serratus anterior|intercostal|\brib\b|costal cartilage', m['name'], re.I)])
+    P = np.asarray(skin.vertices); N = np.asarray(skin.vertex_normals)
+    extra = []
+    for side, word in (('L', 'Left'), ('R', 'Right')):
+        pts = np.vstack([f['pos'] for n, f in F.items() if f['group'] == 'breast_' + side])
+        d, _ = cKDTree(pts).query(P)
+        region = d < 0.015
+        if region.sum() < 50:
+            continue
+        faces = skin.faces[region[skin.faces].all(1)]
+        comp = max(trimesh.Trimesh(P, faces, process=False).split(only_watertight=False), key=lambda c: len(c.faces))
+        _, gi = cKDTree(P).query(comp.vertices)
+        n = N[gi]
+        front = P[gi] - n * inset
+        loc, ri, _ = wall.ray.intersects_location(front, -n, multiple_hits=False)
+        depth = np.full(len(front), np.nan)
+        depth[ri] = np.maximum(np.linalg.norm(loc - front[ri], axis=1) - 0.003, 0.0005)
+        depth = np.minimum(depth, 0.16)              # this donor's breast reaches > 8 cm from the chest wall
+        # rays that missed the wall (grazing angles at the border): use the nearest hit depth
+        miss = ~np.isfinite(depth)
+        if miss.any() and (~miss).any():
+            _, jj = cKDTree(front[~miss]).query(front[miss])
+            depth[miss] = depth[~miss][jj]
+        depth = np.nan_to_num(depth, nan=0.01)
+        # taper: graph distance from the region border (in rings), smooth
+        be = np.unique(comp.edges_sorted[trimesh.grouping.group_rows(comp.edges_sorted, require_count=1)])
+        ring = np.full(len(gi), 99.0); ring[be] = 0
+        nb = comp.vertex_neighbors
+        for k in range(1, 12):
+            cur = np.where(ring == k - 1)[0]
+            for i in cur:
+                for j in nb[i]:
+                    if ring[j] > k:
+                        ring[j] = k
+        t = ml.smoothstep(0, 8, ring)
+        back = front - n * (0.0004 + t * depth)[:, None]
+        nv = len(gi)
+        bedges = comp.edges_sorted[trimesh.grouping.group_rows(comp.edges_sorted, require_count=1)]
+        sidef = np.vstack([np.c_[bedges[:, 0], bedges[:, 1], bedges[:, 1] + nv], np.c_[bedges[:, 0], bedges[:, 1] + nv, bedges[:, 0] + nv]])
+        m = trimesh.Trimesh(np.vstack([front, back]), np.vstack([comp.faces, comp.faces[:, ::-1] + nv, sidef]), process=True)
+        trimesh.repair.fix_normals(m)
+        trimesh.smoothing.filter_taubin(m, iterations=10)
+        w = word.lower()
+        extra.append(({'id': f'GEN_breast_adipose_{w}', 'name': f'{word} breast adipose tissue', 'conceptId': f'GEN:breast-adipose-{w}',
+                       'system': 'adipose', 'source': 'generated', 'accuracy': 'generated',
+                       'note': 'Generated on the real VHF body: the volume between the real breast skin (inset 2.5 mm) and the '
+                               'real chest wall (+3 mm retromammary fat), tapering smoothly to the border.'},
+                      np.asarray(m.vertices), np.asarray(m.faces).reshape(-1)))
+    # The real HRA interlobar fat is replaced by this volume (the brief's breast fat definition).
+    for n in [n for n, f in F.items() if f['group'].startswith('breast') and re.search(r'_fat_', n)]:
+        F.pop(n)
+    report['vhf_breast_fat'] = {'parts': len(extra)}
+    return extra
+
+
+def vhf_rigid_head(M, male, hra_skin, report):
+    """The CT head segmentation is unusable (frozen in a gelatin block). The head is fitted as ONE
+    rigid unit (+ uniform scale) to the real VHF head skin: symmetric non-rigid fit of the male head
+    skin onto the VHF head skin gives dense pairs; rigid_head() fits one similarity to them."""
+    import vhf_register as vr
+    J = json.loads((WORK / 'male_pose.json').read_text())['joints']
+    ms = male['FJ2810']
+    y0 = J['C3'][1] + 0.05
+    full = ml.to_trimesh(ms['pos'], ms['idx'])
+    keep = ms['pos'][:, 1] > y0
+    m_head = full.submesh([np.where(keep[full.faces].all(1))[0]], append=True)
+    sel = np.ones(len(m_head.vertices), bool)
+    ms = {'pos': np.asarray(m_head.vertices)}
+    fv = np.asarray(hra_skin.vertices)
+    top = fv[:, 1].max()
+    hmask = fv[:, 1] > top - (ms['pos'][:, 1].max() - y0) * 0.97
+    tgt = ml.to_trimesh(fv, hra_skin.faces[hmask[hra_skin.faces].all(1)].reshape(-1))
+    tgt.remove_unreferenced_vertices()
+    X = vr.symmetric_fit(ms['pos'], m_head.vertex_neighbors, tgt, iters=40)
+    STATE['dense'] = (ms['pos'][sel], X[sel])
+    POSE[0] = {'joints': J}
+    rigid_head(M, male, report)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--hra', default=str(ROOT / 'work/sources/hra/3d-vh-f-united.glb'))
     ap.add_argument('--blender', default=None)
     ap.add_argument('--debug-obj', action='store_true')
     ap.add_argument('--resume', action='store_true', help='developer aid: restart after the warp from work/female/stage.pkl')
+    ap.add_argument('--body', choices=['vhf', 'mpfb'], default='vhf',
+                    help='vhf: one real body (Visible Human Female; milestone 5). mpfb: the v4 parametric body.')
     args = ap.parse_args()
+    STATE['body'] = args.body
     cfg = json.loads((HERE / 'config.json').read_text())
     WORK.mkdir(parents=True, exist_ok=True)
     atlas, male, hra = load_inputs(args, cfg)
     if args.resume:
         M, F, report, removed, ctx = pickle.loads((WORK / 'stage.pkl').read_bytes())
         POSE[:] = ctx['pose']
+    elif args.body == 'vhf':
+        report = {'body': 'vhf'}
+        removed = classify_male(atlas, cfg)
+        shift = hra_frame(hra)
+        report['frame_shift_m'] = shift.tolist()
+        if not (WORK / 'male_pose.json').exists():
+            import subprocess
+            subprocess.run([sys.executable, str(HERE / 'male_pose.py')], check=True)
+        registered = pickle.loads((ROOT / 'work/vhf/registered.pkl').read_bytes())
+        warp, f_skin, lm_pf, heads, bm, bf, lm_m, lm_f = build_warp_vhf(atlas, male, hra, shift, report, registered)
+        M = {}
+        for p in atlas['parts']:
+            if p['id'] in removed:
+                continue
+            M[p['id']] = {'pos': warp(male[p['id']]['pos']), 'idx': male[p['id']]['idx'], 'name': p['name'], 'system': p['system']}
+        log('warped', len(M), 'male parts (VHF body)')
+        apply_registered(M, registered, hra, shift, report)
+        articulated_arms(M, male, atlas, hra, shift, report)      # arms: rigid segments on the real VHF arm axes
+        vhf_rigid_head(M, male, f_skin, report)
+        pin_midline(M, report)
+        refit_fasciae(M, report)
+        for m in M.values():
+            m['warp_pos'] = m['pos'].copy()
+        F = place_hra(hra, hra_selected(hra), shift)               # same donor: NO transform
+        female_shoulder_bulk(M, report, factor=0.9)
+        ctx = {'lm_pf': lm_pf, 'heads': heads, 'bm': bm, 'bf': bf, 'lm_m': lm_m, 'lm_f': lm_f, 'pose': [None, None]}
+        (WORK / 'stage.pkl').write_bytes(pickle.dumps((M, F, report, removed, ctx)))
     else:
         report = {}
         removed = classify_male(atlas, cfg)
@@ -1426,7 +1668,10 @@ def main():
     connect_ureters(F, M, report)
     resolve_collisions(F, M, report)
     soft_tissue_off_pelvis(F, M, report)
-    breast_extra = mpfb_breasts(F, M, skin, report)
+    if args.body == 'vhf':
+        breast_extra = vhf_breast_fat(F, M, skin, report)     # real HRA breast set untouched
+    else:
+        breast_extra = mpfb_breasts(F, M, skin, report)
     # The breasts moved: rebuild the skin shell used by every later containment step.
     skin = ml.to_trimesh(F['VH_F_skin']['pos'], F['VH_F_skin']['idx'])
     shell = ml.SkinShell(skin)
@@ -1442,11 +1687,14 @@ def main():
             gin[stem] = {'vertices_outside': bad, 'left_outside': left}
     report['generated_inside'] = gin
     keep_inside_skin(shell, M, F, report)
-    fv, fi = gluteofemoral_fat(skin, ctx['lm_f'], ctx['lm_pf'])
-    extra = [({'id': 'GEN_subcutaneous_fat_gluteofemoral', 'name': 'Subcutaneous fat of hips, buttocks and thighs (female distribution)',
-               'conceptId': 'GEN:subcutaneous-fat-gluteofemoral', 'system': 'integumentary', 'source': 'generated', 'accuracy': 'generated',
-               'note': 'Generated / schematic: the extra gluteofemoral subcutaneous fat (8 mm) between the warped male soft tissue and the scan-derived female skin.'},
-              fv, fi)] + breast_extra
+    if args.body == 'vhf':
+        extra = list(breast_extra)        # the real VHF skin already carries her own gluteofemoral fat
+    else:
+        fv, fi = gluteofemoral_fat(skin, ctx['lm_f'], ctx['lm_pf'])
+        extra = [({'id': 'GEN_subcutaneous_fat_gluteofemoral', 'name': 'Subcutaneous fat of hips, buttocks and thighs (female distribution)',
+                   'conceptId': 'GEN:subcutaneous-fat-gluteofemoral', 'system': 'integumentary', 'source': 'generated', 'accuracy': 'generated',
+                   'note': 'Generated / schematic: the extra gluteofemoral subcutaneous fat (8 mm) between the warped male soft tissue and the scan-derived female skin.'},
+                  fv, fi)] + breast_extra
     # Final surveys for VERIFICATION.md.
     fixed = {i: (m['pos'], m['idx']) for i, m in M.items()}
     final = {}
