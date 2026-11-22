@@ -15,6 +15,19 @@ Version 3 (polish milestone):
 
 Up to version 2 the HRA skin scan was the body surface. It is no longer distributed (see DECISIONS.md D33).
 
+## Milestones 5–6: Visible Human Female CT and cryosections (branches `vhf-real`, `hybrid`)
+
+- **NLM Visible Human Project, female (VHP-F)**, via the NCI Imaging Data Commons collection `nlm_visible_human_project` (licence: National Library of Medicine Terms and Conditions, May 21, 2019). Courtesy of the U.S. National Library of Medicine.
+  - **CT:** series "AXIAL 1X1 NCE" (985 slices, head→femur) and "1X1 AXIAL FEMUR-TOES NCE" (749 slices). Downloaded by `scripts/female/vhf_ct.py`.
+  - **Colour cryosections:** "Fullcolor - direct digital", 5,186 slices at 0.33 mm, 38.7 GB in total. They are indexed from DICOM headers only, and slices are downloaded on demand by `scripts/female/vhf_cryo.py`.
+  - The cadaver was imaged frozen inside a gelatin block. The CT body outline is therefore the block, so registration is done on bone.
+- **TotalSegmentator `total`** (Apache-2.0; Wasserthal et al. 2023), run on the CT. No licensed tasks were used. The segments serve as registration targets and section checks.
+- **HRA VH_F organs used in the hybrid body:** vertebrae, spinal cord, liver, gallbladder, pancreas, spleen, colon, small intestine, duodenum, kidneys, heart chambers/valves/papillary muscles, trachea, main bronchi and thymus, plus the earlier skin, breasts, pelvis, pelvic organs, lungs and leg bones.
+- **Not used:**
+  - The TotalSegmentator training dataset (CC BY 4.0, Zenodo 10047292, 23.6 GB) was not downloaded.
+  - The 2025 female pelvic MRI dataset (doi 10.1038/s41597-025-05623-3) is of endometriosis patients, so it is not a normal reference, and its file licence was not confirmed.
+  - Bowen et al. 2022 (Int Urogynecol J 33:1649) is cited, but its numbers are in the paywalled full text, so only O'Connell 1998/2005 values are used.
+
 ## Step 1 inventory
 
 ### HRA female reference set (VH_F) — **used**

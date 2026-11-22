@@ -133,3 +133,7 @@ Import this repository into Vercel as a Vite project. The included `vercel.json`
 Original application code is released under the [MIT License](LICENSE). **The anatomy data has its own CC BY 4.0 license** (BodyParts3D; HRA female organ set; the generated female structures are released under CC BY 4.0 as part of the same dataset); preserve the attribution in [ATTRIBUTION.md](public/ATTRIBUTION.md) when redistributing it. Third-party dependencies retain their respective licenses.
 
 Issues and pull requests are welcome. Please include reproduction steps and browser/device details for interaction problems.
+
+## Hybrid body (branch `hybrid`, experimental)
+
+`python scripts/build-anatomy.py --sex female --body hybrid` builds the female body from the real HRA Visible Human Female organs, vertebrae and skin. All other bones are BodyParts3D bones moved rigidly. It did not beat v4 in review, so main still ships v4 (see VERIFICATION.md, milestone 6). Visible Human data courtesy of the U.S. National Library of Medicine.

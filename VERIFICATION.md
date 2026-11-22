@@ -358,3 +358,51 @@ They are listed in README "Known limitations".
 ## Not tested [—]
 
 Physical devices, native WebMCP, and anatomist review.
+
+## Milestone 6: hybrid body (branch `hybrid`) — NOT merged
+
+Build: `python scripts/build-anatomy.py --sex female --body hybrid`. 2,384 parts: bp3d 2,031, hra 324 (scan-derived), generated 29.
+
+### Gates
+| Gate | Target | Result |
+|---|---|---|
+| Bone rigidity (max vertex error after similarity fit, 238 bones) | < 0.1 mm | 5e-12 mm — PASS |
+| Ribs outside lungs | 2–5 mm | 24 ribs adjusted |
+| Muscles covering iliac crests | — | 12 muscles pushed off |
+| Through skin (except eyes/teeth) | 0 | 73 parts (72 bp3d, 1 generated) — FAIL |
+| Floating | 0 | 0 — PASS |
+| Stretch > 2x | ≤ 0.1% | 13,048 / 1,969,056 = 0.66% — FAIL |
+| Vulva from cryosections | done | not done (generated set kept, D51) — FAIL |
+
+### Sections (regionally aligned bone Dice; gate ≥ 0.70)
+| Level | Body Dice (info) | Bone Dice |
+|---|---|---|
+| C5 | 0.347 | 0.501 |
+| T4 | 0.780 | 0.344 |
+| T10 | 0.727 | 0.263 |
+| L3 | 0.678 | 0.410 |
+| S1 | 0.750 | 0.168 |
+| Pubic symphysis | 0.835 | 0.500 |
+| Perineum | 0.758 | 0.317 |
+| Mid-thigh | 0.338 | 0.396 |
+| Knee / mid-calf | 0.04 | n/a (CT registration failed) |
+| Mid-upper-arm | 0.769 | 0.005 |
+| Mid-forearm | 0.660 | 0.025 |
+| Wrist | 0.794 | 0.056 |
+| Mid-hand | 0.837 | 0.000 |
+
+All levels fail the bone gate. The arm levels fail because the cadaver's arms lie at her sides in the CT, while the model is in A-pose.
+
+### Fresh reviewers (1 round, v4 vs hybrid side by side)
+| Area | Better | Hybrid |
+|---|---|---|
+| Whole body | v4 | FAIL |
+| Breasts | v4 | FAIL (midline shell, low/medial) |
+| Pelvis/perineum | v4 | FAIL (vulva below pubic arch) |
+| Limbs/hands | v4 | FAIL (scattered hand bones) |
+| Head/neck | hybrid | PASS |
+| Abdomen/organs | v4 | FAIL |
+
+Merge rule (better in ≥ 5/6 areas, none worse) **fails, 1/6**. The branch was pushed; main is unchanged. Further rounds were not run because the result could not reach 5/6 without rework.
+
+Tests: npm run check, validate-atlas, validate-interactions, npm run build and verify-browser all pass.

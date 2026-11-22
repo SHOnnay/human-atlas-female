@@ -6,6 +6,46 @@ Each entry gives the decision, the reason and the consequence. Numbers come from
 - **Version 2** (D21–D32 below) rebuilt the model around the HRA Visible Human Female.
 - **Version 3** (D33–D46, first) is the polish milestone. It changes the body surface and replaces every large-rotation and shape-changing step with rigid transforms. Where it conflicts with v2, v3 wins.
 
+## Milestone 6: hybrid body (branch `hybrid`, `--body hybrid`)
+
+**D47. One real donor as the anchor, rigid bones everywhere else.**
+
+Taken as-is from the HRA Visible Human Female, in one consistent space and with no transform:
+- her skin and breast set
+- pelvis, sacrum, coccyx; femurs, patellae, tibiae, fibulae
+- pelvic organs, lungs
+- **vertebrae** (25, including a sixth lumbar vertebra — a donor variant) and spinal cord
+- liver, gallbladder, pancreas, spleen, colon, small intestine, duodenum
+- kidneys (cortex, pyramids, papillae, calyces)
+- heart chambers, valves and papillary muscles
+- trachea, main bronchi, thymus
+
+The BodyParts3D equivalents are removed, including the male intervertebral discs, so none are left floating among the real vertebrae.
+
+**D48. No non-rigid fitting of any BodyParts3D bone.**
+- The milestone 5 CT-registered (CPD/ICP) shapes are not used: that fitting shredded the ribs and spine.
+- Every remaining bone (ribs, sternum, costal cartilages, shoulder girdle, arm and hand bones, skull group) moves by one similarity: the best rotation, translation and uniform scale from its male shape to its warped position. The maximum vertex error after a similarity fit is 0 (≈ 5 × 10⁻¹² mm).
+- The ribs are then translated rigidly to keep a 2–5 mm pleural gap outside the real HRA lungs.
+- The head stays one rigid unit fitted to her real head skin.
+
+**D49. Soft tissue.**
+- Muscles, vessels and nerves follow the body warp: Version 2 correspondences on her real skin, pelvis and leg bones.
+- The arms are rigid segments on her real A-pose arm axes.
+- Fasciae are re-fitted as shells on the muscles they cover.
+- Gluteals, tensor fasciae latae, obliques, transversus, quadratus lumborum and iliacus are pushed off the real hip bones (+3 mm), so they cover the iliac crests.
+- Bone-attached limb skinning (v4) needs the MPFB rig joints, which this body does not have. It is not used; limb soft tissue follows the warp.
+
+**D50. Breast fat.** One closed volume, only under skin within 1 cm of her real breast tissue (no shell toward the axilla), on the ray-cast chest wall. The real HRA lobes are not moved.
+
+**D51. Vulva and perineum from cryosections — not done.**
+- The full-colour cryosections are indexed and can be downloaded slice by slice.
+- At the downsampled scale used for the section check, the crura, bulbs and labia are not separable by colour. Segmenting them needs full-resolution, slice-by-slice work that did not fit this milestone.
+- The generated set (published dimensions, anchored to her real pubic arch and skin) remains, labelled generated.
+
+**D52. Section check aligned regionally.**
+- Bone Dice is computed after translating the CT bone mask onto the model's local bone (spine, pelvis, femur, tibia, humerus, radius/ulna) within that level's window.
+- Body Dice is informational only: the cadaver was frozen supine, so her soft tissue is flattened.
+
 ## Version 3 (polish milestone)
 
 **D33. Root cause: the pose. The body is now MPFB2's average adult female, posed by its rig into the male pose.**
