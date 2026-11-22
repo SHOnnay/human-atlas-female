@@ -31,7 +31,7 @@ def main():
     ap.add_argument('--sex', choices=['male', 'female'], required=True)
     ap.add_argument('--hra', default=str(ROOT / 'work/sources/hra/3d-vh-f-united.glb'))
     ap.add_argument('--blender', help='Blender 4.2 executable (default: $BLENDER, work/tools, PATH)')
-    ap.add_argument('--body', choices=['vhf', 'mpfb'], default='vhf', help='female body: vhf (one real donor) or mpfb (v4)')
+    ap.add_argument('--body', choices=['hybrid', 'vhf', 'mpfb'], default='hybrid', help='female body: vhf (one real donor) or mpfb (v4)')
     ap.add_argument('--ts-python', default=os.environ.get('TS_PYTHON', 'python'),
                     help='Python of an environment with TotalSegmentator, idc-index, SimpleITK (VHF CT steps)')
     ap.add_argument('male_inputs', nargs='*', help='male only: OBJ_DIR CONCEPT_MAP SYSTEM_MAP')
@@ -45,7 +45,7 @@ def main():
     else:
         if a.blender:
             os.environ['BLENDER'] = a.blender
-        if a.body == 'vhf':
+        if a.body in ('vhf', 'hybrid'):
             # One real body: VHF CT (IDC, NLM) -> TotalSegmentator "total" (Apache-2.0) -> VHF targets in the
             # HRA frame -> BodyParts3D registration. The first three need the TotalSegmentator environment
             # (--ts-python); their outputs are cached under work/vhf/.

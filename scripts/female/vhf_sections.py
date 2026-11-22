@@ -62,10 +62,18 @@ def dice(a, b):
 
 def levels(atlas, M):
     by = {p['name']: M[p['id']]['pos'] for p in atlas['parts']}
-    c = lambda n: by[n].mean(0)[1]
+    import re
+
+    def c(*pats):           # BodyParts3D name or the real HRA vertebra label
+        for n, v in by.items():
+            if any(re.fullmatch(p, n, re.I) for p in pats):
+                return v.mean(0)[1]
+        raise KeyError(pats)
     skin = by['Skin']
-    out = {'C5': c('Fifth cervical vertebra'), 'T4 (nipple level)': c('Fourth thoracic vertebra'), 'T10': c('Tenth thoracic vertebra'),
-           'L3': c('Third lumbar vertebra'), 'S1': np.vstack([v for n, v in by.items() if n.lower() == 'sacrum' or 'sacrum' in n.lower()])[:, 1].max() - 0.02,
+    out = {'C5': c('Fifth cervical vertebra', r'(mammalian )?cervical vertebra 5( \(C5\))?'),
+           'T4 (nipple level)': c('Fourth thoracic vertebra', r'thoracic vertebra 4( \(T4\))?'),
+           'T10': c('Tenth thoracic vertebra', r'thoracic vertebra 10( \(T10\))?'),
+           'L3': c('Third lumbar vertebra', r'lumbar vertebra 3( \(L3\))?'), 'S1': np.vstack([v for n, v in by.items() if n.lower() == 'sacrum' or 'sacrum' in n.lower()])[:, 1].max() - 0.02,
            'pubic symphysis': np.vstack([v for n, v in by.items() if n.lower().endswith('pubis')]).mean(0)[1]}
     out['perineum'] = out['pubic symphysis'] - 0.045
     fem = by['Left femur']; tib = by['Left tibia']
@@ -83,13 +91,35 @@ def levels(atlas, M):
     return {k: float(v) for k, v in out.items()}
 
 
-def ct_plane(y, reg):
-    """Resample the head->femur CT on the atlas plane at height y (grid EXT, 1 mm) -> HU image."""
+REGION = {   # level -> x-window (m) of the local bone used for the regional alignment / bone Dice
+    'C5': (-0.05, 0.05), 'T4 (nipple level)': (-0.05, 0.05), 'T10': (-0.05, 0.05), 'L3': (-0.05, 0.05),
+    'S1': (-0.2, 0.2), 'pubic symphysis': (-0.2, 0.2), 'perineum': (-0.2, 0.2),
+    'mid-thigh': (0.0, 0.2), 'knee': (0.0, 0.2), 'mid-calf': (0.0, 0.2),
+    'mid-upper-arm': (0.12, 0.3), 'mid-forearm': (0.12, 0.3), 'wrist': (0.12, 0.3), 'mid-hand': (0.12, 0.3)}
+
+
+def regional_dice(ct_bone, model_bone, xwin):
+    """Bone Dice after REGIONAL alignment: both masks are restricted to the level's x-window, the CT
+    mask is translated so its bone centroid matches the model's (no rotation, no scale)."""
+    from scipy import ndimage
+    H, W = model_bone.shape
+    c0, c1 = int((xwin[0] - EXT[0]) / G), int((xwin[1] - EXT[0]) / G)
+    win = np.zeros_like(model_bone); win[:, max(0, c0):min(W, c1)] = True
+    a, b = ct_bone & win, model_bone & win
+    if not a.any() or not b.any():
+        return None, a
+    off = np.round(np.array(ndimage.center_of_mass(b)) - np.array(ndimage.center_of_mass(a))).astype(int)
+    a2 = np.roll(np.roll(a, off[0], 0), off[1], 1)
+    return dice(a2 & win, b), a2
+
+
+def ct_plane(y, reg, name='head_to_femur'):
+    """Resample a VHF CT volume on the atlas plane at height y (grid EXT, 1 mm) -> HU image."""
     import SimpleITK as sitk
-    if 'ct' not in CACHE:
-        img = sitk.ReadImage(str(ROOT / 'work/vhf/ct_head_to_femur.nii.gz'))
-        CACHE['ct'] = (img, sitk.GetArrayFromImage(img))
-    img, arr = CACHE['ct']
+    if name not in CACHE:
+        img = sitk.ReadImage(str(ROOT / f'work/vhf/ct_{name}.nii.gz'))
+        CACHE[name] = (img, sitk.GetArrayFromImage(img))
+    img, arr = CACHE[name]
     R, t = np.array(reg['R']), np.array(reg['t'])
     xs = np.arange(EXT[0], EXT[1], G); zs = np.arange(EXT[3], EXT[2], -G)
     X, Z = np.meshgrid(xs, zs)
@@ -164,7 +194,8 @@ def main():
     from PIL import Image, ImageDraw
     OUT.mkdir(parents=True, exist_ok=True)
     atlas, M = ml.load_package(ROOT / 'public/models/female/atlas.json')
-    reg = json.loads((ROOT / 'work/vhf/registration.json').read_text())['volumes']['head_to_femur']
+    vols = json.loads((ROOT / 'work/vhf/registration.json').read_text())['volumes']
+    reg, reg_legs = vols['head_to_femur'], vols['femur_to_toes']
     rows_idx = json.loads((ROOT / 'work/vhf/xc_index.json').read_text())
     z_feet = min(r['z'] for r in rows_idx) + 30.0      # first body slice ~3 cm above the block bottom (refined by search)
     skin = [ml.to_trimesh(M[p['id']]['pos'], M[p['id']]['idx']) for p in atlas['parts'] if p['name'] == 'Skin']
@@ -175,15 +206,17 @@ def main():
         bone_m = raster(section_polys(bones, y))
         # cryosection: search the height (+-40 mm) for the best shape agreement
         best = None
-        for dz in range(-40, 41, 10):
+        for dz in range(-30, 31, 15):
             rgb, zc = cryo_slice(z_feet + y * 1000 + dz)
             aligned, d, flip = fit_cryo(cryo_body(rgb), body_m)
             if best is None or d > best[0]:
                 best = (d, zc, rgb, aligned, flip)
         d_body, zc, rgb, aligned, flip = best
         hu, inside = ct_plane(y, reg)
+        if not inside or not (hu > 200).any():
+            hu, inside = ct_plane(y, reg_legs, 'femur_to_toes')     # leg levels: the femur->toes volume
         ct_bone = hu > 200
-        d_bone = dice(ct_bone, bone_m) if inside and ct_bone.any() else None
+        d_bone, ct_aligned = regional_dice(ct_bone, bone_m, REGION.get(name, (-0.3, 0.3))) if inside and ct_bone.any() else (None, ct_bone)
         res[name] = {'y_m': y, 'cryo_z_mm': zc, 'body_dice': d_body, 'bone_dice': d_bone, 'ct_in_fov': inside}
         print(f"{name:20s} y={y:.3f} body Dice {d_body:.3f}  bone Dice {('%.3f' % d_bone) if d_bone is not None else 'n/a (outside CT)'}", flush=True)
         # overlay images: cryo (aligned to the model grid) + model outlines; CT plane + model bone outline
@@ -203,6 +236,7 @@ def main():
         canvas[edge(body_m)] = (0, 255, 120); canvas[edge(bone_m)] = (255, 220, 0)
         ct_img = np.clip((hu + 200) / 1400 * 255, 0, 255).astype(np.uint8)
         ct_rgb = np.stack([ct_img] * 3, -1)
+        ct_rgb[edge(ct_aligned)] = (255, 60, 60)            # regionally aligned CT bone (red)
         ct_rgb[edge(bone_m)] = (255, 220, 0); ct_rgb[edge(body_m)] = (0, 255, 120)
         both = np.concatenate([canvas, ct_rgb], 1)
         im = Image.fromarray(both); dr = ImageDraw.Draw(im)
