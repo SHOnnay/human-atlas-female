@@ -1,5 +1,90 @@
 # Verification — female anatomy model
 
+## Milestone 5: one real body (Visible Human Female), branch `vhf-real`, 2026-11-22
+
+**Merge decision: NOT merged.** The rule was "merge only if the reviewer scores beat v4 on every area". They do not: the head scores 0/3 here against 4/5 in v4. main stays at v4 (tag `v4-mpfb`, 1b3a2fc); this work is on the `vhf-real` branch.
+
+### Data and pipeline (Steps 1–5)
+
+**Data:**
+- VHF CT: IDC collection `nlm_visible_human_project`, patient VHP-F — two series, head→femur (985 slices, 0.94 × 0.94 × 1.01 mm) and femur→toes (749 slices).
+- Colour cryosections: 5,186 slices at 0.33 mm, indexed from DICOM headers only; slices downloaded on demand.
+- Courtesy of the U.S. National Library of Medicine.
+
+**Segmentation:** TotalSegmentator `total` (Apache-2.0) on the CUDA GPU (RTX 4070), about 90 s per volume. No licensed tasks were used.
+
+**Registration (Step 2):**
+- The cadaver was CT-scanned frozen in a gelatin block, so the CT "body outline" is the block. The CT is therefore registered to the HRA frame on bone.
+- Head→femur: TotalSegmentator hips, sacrum and femurs against the HRA pelvis and femurs. Rigid, no scale. Median bone-to-bone distance 4.2 mm, 90th percentile 10.5 mm.
+- Femur→toes: **FAILED** (median 32 mm). The HRA VHF femur, patella, tibia and fibula (same donor) are used as leg targets instead.
+
+**Per-structure registration (Step 4):**
+- BodyParts3D structures were registered onto the VHF segment meshes (symmetric non-rigid ICP after a similarity fit) and gated at mean ≤ 2 mm, 95% Hausdorff ≤ 5 mm, plus an extent sanity check. The pass list is in `work/vhf/register_report.json`.
+- The femurs, tibiae, fibulae and patellae failed the gate and are shown as the real HRA VHF bones, labelled scan-derived, with the BodyParts3D IDs kept.
+- **Head CT targets unusable:** the CT "skull" segment is 27 × 21 × 36 cm (gelatin block artefact). The head was instead fitted as one rigid unit to the real VHF head skin — **approximate**.
+
+**Body (Step 3):** the real HRA VHF skin and the real HRA breast set, with no transform. MPFB is removed from `--body vhf`.
+
+**Warp (Step 5):** the Version 2 skin, pelvis and leg-bone correspondences plus dense pairs from every structure that passed. Fasciae are re-fitted as shells on the muscles they cover. Arms are rigid segments on the real VHF arm axes.
+
+### Step 8C gates
+
+| Gate | Target | Result |
+|---|---|---|
+| Parts through the skin | 0 | **78 FAIL** (76 warped, 2 generated) |
+| Floating parts | 0 | 0 PASS |
+| Warped triangles stretched > 2× | ≤ 0.05% | **6.2% FAIL** (135,344 / 2,166,224) |
+| BodyParts3D IDs, names and systems kept | all | PASS (validator) |
+| Package download | ≤ 40 MB | 28.7 MB PASS |
+
+### Step 8A sections
+
+These are model outlines against the real body: body outline against the VHF cryosection photo, bones against the VHF CT. Overlays are in `docs/screenshots/sections/`.
+
+**Gates:** body Dice ≥ 0.95, bone Dice ≥ 0.85. **Both FAIL at every level.**
+
+Two limits of the method:
+- The cryosection height and in-plane placement are fitted per slice (translation and flips only).
+- The leg levels lie outside the CT volume used for bone.
+
+| Level | Body Dice | Bone Dice |
+|---|---|---|
+| C5 | 0.37 | 0.05 |
+| T4 (nipple) | 0.79 | 0.19 |
+| T10 | 0.75 | 0.17 |
+| L3 | 0.68 | 0.28 |
+| S1 | 0.77 | 0.33 |
+| Pubic symphysis | 0.85 | 0.49 |
+| Perineum | 0.81 | 0.30 |
+| Mid-thigh | 0.34 | n/a |
+| Knee | 0.07 | n/a |
+| Mid-calf | 0.07 | n/a |
+| Mid-upper-arm | 0.77 | 0.26 |
+| Mid-forearm | 0.67 | 0.19 |
+| Wrist | 0.82 | 0.49 |
+
+What the overlays show:
+- At L3 the real frozen body, in both CT and cryosection, is visibly wider than the HRA skin.
+- The model's lumbar vertebrae sit about 2–3 cm anterior to the CT's.
+
+So the HRA meshes, the CT and the cryosections do not share one consistent geometry under a rigid transform. Resolving this needs a deformable CT↔HRA registration, which is not done.
+
+### Step 8E reviewers (round 1 of up to 5; one fresh subagent per area)
+
+| Area | v4 (last result) | VHF round 1 |
+|---|---|---|
+| Whole body | 2/10 in the v3 overall review | 0/4 |
+| Breasts | 0/5 | 1/4 (nipple and areola pass) |
+| Pelvis and perineum | Phase 4: 0/5 on the vulva and uterus items | 0/3 |
+| Limbs and hands | Phase 4: 0/5 on hands | 1/3 (leg bones pass) |
+| Head and neck | **4/5** | 0/3 |
+| Abdomen and organs | not reviewed | 0/3 |
+
+**Not done in this milestone:**
+- Step 6, segmenting the perineum from the cryosections: the vulva, clitoris and bulbs are still the generated structures anchored to the real pelvis and skin.
+- Step 8B, the population check: the 23.6 GB TotalSegmentator dataset was not downloaded; the female pelvic MRI dataset is of endometriosis patients and is not a normal reference.
+- Further review rounds (2–5) and web-app captures for this branch.
+
 ## Milestone 4 (phased), 2026-11-21
 
 Each phase was judged by a fresh reviewer subagent that saw only that phase's screenshots (`docs/screenshots/compare/`, `docs/screenshots/webapp/`) and checklist. A phase gets at most 3 rounds.

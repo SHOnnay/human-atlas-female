@@ -19,6 +19,16 @@ BodyParts3D represents an adult male reference anatomy based on TARO MRI and ana
 
 Every mesh records its source (`source`) and provenance (`accuracy`: `scan-derived`, `warped`, or `generated`) in `models/female/atlas.json`. The viewer shows the provenance as a badge on every structure.
 
+### Visible Human Female CT and cryosections (branch `vhf-real`, `--body vhf`)
+
+**Visible Human Project female data**, courtesy of the U.S. National Library of Medicine. The CT and colour cryosections were accessed through the NCI Imaging Data Commons, collection `nlm_visible_human_project` (NLM Terms and Conditions, May 21, 2019).
+
+**TotalSegmentator** (Wasserthal et al., *Radiology: Artificial Intelligence* 2023; https://github.com/wasserth/TotalSegmentator):
+- The `total` task model was used, under the Apache-2.0 licence.
+- Its CT segmentations are used only as registration targets.
+
+The TotalSegmentator dataset (CC BY 4.0, Zenodo 10047292) is cited for population ranges, but it was not downloaded in this milestone.
+
 ### 0. MPFB2 / MakeHuman — the body surface (generated, parametric)
 
 The female body surface (skin) is an average adult female generated with **MPFB2**, the MakeHuman add-on for Blender (MakeHuman Community, https://static.makehumancommunity.org/mpfb.html), and posed with its "default" rig into the reference pose. Its parameters are female, 25 years, 1.63 m, BMI 22.5 and cup size 0.5. The base mesh, targets and rig are MakeHuman assets released under **CC0 1.0** (public domain dedication). The MPFB2 add-on itself (GPL-3) was used only as a tool; no add-on code is distributed.
