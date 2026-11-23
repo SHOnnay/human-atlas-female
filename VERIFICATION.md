@@ -406,3 +406,28 @@ All levels fail the bone gate. The arm levels fail because the cadaver's arms li
 Merge rule (better in ≥ 5/6 areas, none worse) **fails, 1/6**. The branch was pushed; main is unchanged. Further rounds were not run because the result could not reach 5/6 without rework.
 
 Tests: npm run check, validate-atlas, validate-interactions, npm run build and verify-browser all pass.
+
+## Milestone 7: breast fat, hands/forearms, thigh sheets, framing (branch `hybrid`, not merged by rule)
+
+### Gates
+| Gate | Target | Result |
+|---|---|---|
+| Parts through skin | no increase from 73; zero among touched parts | **101 — FAIL**. 81 are hand/forearm parts, mostly finger bones and small digital vessels: a rigid male hand does not fit inside her skin fingers, even after searching rotation about the wrist. The breast fat accounts for 1 (10 vertices). |
+| Stretch (> 2×) | ≤ 0.66 % | 9,689 / 1,969,056 = **0.49 % — PASS** |
+| Floating | 0 | 0 — PASS |
+| Rigid bones | similarity error < 0.1 mm | 5e-12 mm — PASS |
+| npm run check, validate-atlas, validate-interactions, build, verify-browser | pass | **all PASS** |
+| Male package | unchanged | unchanged |
+
+Section Dice is information only (overlays in docs/screenshots/sections/).
+
+### Reviewers (round 1 of up to 3; further rounds not run)
+| Item | vs previous hybrid | vs v4 | Verdict | Main remaining defect |
+|---|---|---|---|---|
+| 1 Breast fat | improved | same | FAIL | A thin translucent strip still crosses the midline at the xiphoid |
+| 2 Hands/forearms | improved | better | FAIL | Finger soft tissue splays out; a loose sheet sits by the thumb; carpals are offset in palm views |
+| 3 Thigh sheets | improved | better | FAIL | The IT tract is gone from skeleton-only, but its upper end flares off the muscle above the trochanter |
+| 4 Framing | improved | better | FAIL | Body views are fixed; hand views still frame the whole forearm |
+| No-regression | — | — | Head, spine, ribs and pelvic organs unchanged (uterus images identical pixel for pixel) | The only change flagged is the intended removal of the IT-tract plates from the leg views |
+
+Each reviewer listed every image it viewed. Those lists are in the milestone report.

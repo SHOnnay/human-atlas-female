@@ -228,3 +228,24 @@ The earlier decisions still apply, renumbered where needed:
 - D17–D20: toggle, scene lifecycle, selection carry-over, WebMCP `body`
 
 The male files are not modified.
+
+## Milestone 7 (hybrid)
+
+**D53. Breast fat per breast.** Each volume is cut at the sternal edge (max |x| of the sternum + 4 mm) and below the lowest real lobe (the inframammary fold). The real lobes, ducts and nipple are not moved. Default fat opacity is 35 % (app and renders).
+
+**D54. Hand chained to the forearm.**
+- Upper arm and forearm keep their own segment transforms.
+- The hand (every carpal, metacarpal and finger phalanx, even the fingertips beyond the arm axis) moves as one rigid unit. It is chained at the bone wrist (distal radius), and its rotation about the wrist is searched to minimise bone outside her skin.
+- During skin containment, forearm and hand bones move as one rigid group.
+- Forearm and hand muscles whose length changes more than 10 % are carried whole by one segment.
+- Rejected: chaining from the shoulder with a whole-arm or per-segment scale. Her skin-estimated joints gave implausible ratios (1.18 forearm, 0.73 hand) and displaced the forearm.
+
+**D55. Thigh sheets.**
+- The iliotibial tract is reclassified from skeletal to connective (the package now uses the build's system), so skeleton-only shows bones only.
+- Thigh sheets are snapped as a 0.8 mm shell on the final muscle surface after skin containment.
+- The tensor fasciae latae is no longer mistaken for a fascia ("fasciae" matched the fascia pattern).
+
+**D56. Comparison framing.**
+- Each body in a composite is framed on its own geometry.
+- Hand views are found from each body's own finger and wrist bones, and both hands are rendered.
+- New views: thigh close-up and thigh skeleton.
