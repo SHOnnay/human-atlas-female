@@ -45,9 +45,14 @@ def categories(p, c):
         out.append('perineum-closeup')
     if 1.0 < c[1] < 1.45 and abs(c[0]) < 0.22 and (s in ('reproductive', 'connective', 'skeletal') or re.search(r'pectoralis|serratus|intercostal', n)):
         out.append('breast-closeup')
-    # v3 close-ups.
-    if 0.55 < c[1] < 0.83 and c[0] > 0.17 and s not in ('integumentary',):
-        out.append('hand-left')
+    # v3 close-ups. Milestone 7: hands found from each body's own hand bones (pose-independent).
+    for side, box in HANDS.items():
+        if s not in ('integumentary',) and np.all(c > box[0]) and np.all(c < box[1]):
+            out.append('hand-' + side)
+    if 0.40 < c[1] < 0.85 and abs(c[0]) < 0.25 and s in ('skeletal', 'muscular', 'connective'):
+        out.append('thigh-closeup')
+        if s == 'skeletal':
+            out.append('thigh-skeleton')
     if c[1] > 1.30 and s in ('skeletal', 'sensory') and n != 'skin':
         out.append('head-skeleton')
     in_breast = 1.0 < c[1] < 1.36 and abs(c[0]) < 0.24
@@ -63,16 +68,35 @@ def categories(p, c):
     return out
 
 
-JOB_VIEWS = {'perineum-closeup': ['front', 'side', 'back', 'oblique', 'below'], 'hand-left': ['palm', 'dorsum', 'front', 'back'], 'head-skeleton': ['front', 'side'],
+JOB_VIEWS = {'perineum-closeup': ['front', 'side', 'back', 'oblique', 'below'], 'hand-left': ['palm', 'dorsum', 'front', 'back'], 'hand-right': ['palm_r', 'dorsum_r', 'front', 'back'], 'head-skeleton': ['front', 'side'], 'thigh-closeup': ['front', 'side'], 'thigh-skeleton': ['front', 'side'],
              'breast-fat-on': ['front', 'side', 'oblique'], 'breast-fat-off': ['front', 'side', 'oblique'], 'vulva-closeup': ['front', 'below', 'oblique'],
              'uterus-isolated': ['front', 'side', 'oblique']}
-JOB_ALPHA = {'vulva-closeup': {'integumentary': 0.4}, 'breast-fat-on': {'adipose': 0.55}, 'all-systems': {'adipose': 0.5},
+JOB_ALPHA = {'vulva-closeup': {'integumentary': 0.4}, 'breast-fat-on': {'adipose': 0.35}, 'all-systems': {'adipose': 0.5},
              'all-systems-skin': {'integumentary': 0.2}}
 NO_FRAME = {'vulva-closeup': {'integumentary'}}   # systems that do not set the camera framing
 
 
+HANDS = {}
+HAND_BONE = re.compile(r'carp|phalanx of .*(finger|thumb)|scaphoid|lunate|triquetr|pisiform|trapezi|capitate|hamate', re.I)
+
+
 def export(body, path):
     atlas, M = ml.load_package(path)
+    set_hands(atlas, M)
+    return _export(body, atlas, M)
+
+
+def set_hands(atlas, M):
+    HANDS.clear()
+    for side, sgn in (('left', 1), ('right', -1)):
+        hb = [M[p['id']]['pos'] for p in atlas['parts'] if p['system'] == 'skeletal' and HAND_BONE.search(p['name'])
+              and np.sign(M[p['id']]['pos'][:, 0].mean()) == sgn]
+        if hb:
+            V = np.vstack(hb)
+            HANDS[side] = (V.min(0) - 0.02, V.max(0) + 0.02)
+
+
+def _export(body, atlas, M):
     groups = {}
     for p in atlas['parts']:
         pos = M[p['id']]['pos']
@@ -108,7 +132,11 @@ def main():
         mb = bm.get(cat, bf[cat])
         lo = np.minimum(mb[0], bf[cat][0]); hi = np.maximum(mb[1], bf[cat][1])
         views = JOB_VIEWS.get(cat, ['front', 'side', 'back', 'oblique'])
-        jobs.append({'cat': cat, 'lo': lo.tolist(), 'hi': hi.tolist(), 'views': views, 'alpha': JOB_ALPHA.get(cat, {})})
+        frames = {'female': [bf[cat][0].tolist(), bf[cat][1].tolist()]}
+        if cat in bm:
+            frames['male'] = [bm[cat][0].tolist(), bm[cat][1].tolist()]
+        jobs.append({'cat': cat, 'lo': lo.tolist(), 'hi': hi.tolist(), 'views': views, 'alpha': JOB_ALPHA.get(cat, {}),
+                     'frames': frames})
     (TMP / 'jobs.json').write_text(json.dumps(jobs))
     blender_run.run(Path(__file__).with_name('render_compare_blender.py'), [TMP / 'jobs.json', TMP], quiet=True)
     made = []

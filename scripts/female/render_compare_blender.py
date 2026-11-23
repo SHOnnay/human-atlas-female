@@ -46,11 +46,20 @@ def load_obj(path):
     return obj
 
 
-for job in jobs:
-    a, b = B(job['lo']), B(job['hi'])
+DIRS['palm_r'] = Vector((1, -0.25, 0)).normalized(); DIRS['dorsum_r'] = Vector((-1, 0.25, 0)).normalized()
+
+
+def frame(lo_, hi_):
+    a, b = B(lo_), B(hi_)
     lo = Vector((min(a[i], b[i]) for i in range(3))); hi = Vector((max(a[i], b[i]) for i in range(3)))
-    centre, size = (lo + hi) / 2, max(hi - lo)
+    return (lo + hi) / 2, max(hi - lo)
+
+
+for job in jobs:
     for body in ('male', 'female'):
+        # milestone 7: each body framed on its OWN geometry, so both fill their half equally
+        fr = job.get('frames', {}).get(body)
+        centre, size = frame(*fr) if fr else frame(job['lo'], job['hi'])
         bpy.ops.wm.read_factory_settings(use_empty=True)
         scene = bpy.context.scene
         ALPHA.clear(); ALPHA.update(job.get('alpha', {}))

@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'docs' / 'screenshots' / 'webapp'
 # Blender view directions (Z-up, anterior = -Y) -> atlas (y-up, anterior = +z): (bx, bz, -by).
 DIRS_B = {'front': (0, -1, 0), 'back': (0, 1, 0), 'side': (1, 0, 0), 'oblique': (0.75, -1, 0.15), 'below': (0, -0.35, -1),
-          'palm': (-1, -0.25, 0), 'dorsum': (1, 0.25, 0)}
+          'palm': (-1, -0.25, 0), 'dorsum': (1, 0.25, 0), 'palm_r': (1, -0.25, 0), 'dorsum_r': (-1, 0.25, 0)}
 
 
 def atlas_dir(v):
@@ -34,6 +34,7 @@ def atlas_dir(v):
 
 def members(path):
     atlas, M = ml.load_package(path)
+    cr.set_hands(atlas, M)
     out = {}
     for p in atlas['parts']:
         for cat in cr.categories(p, M[p['id']]['pos'].mean(0)):
@@ -64,7 +65,8 @@ def main():
             page.evaluate("""() => { const c = document.querySelector('canvas');
                 document.querySelectorAll('body *').forEach(e => { if (!e.contains(c) && e !== c) e.style.visibility = 'hidden'; }); }""")
             for job in jobs:
-                lo, hi = np.array(job['lo']), np.array(job['hi'])
+                fr = job.get('frames', {}).get(body, [job['lo'], job['hi']])
+                lo, hi = np.array(fr[0]), np.array(fr[1])
                 centre, size = (lo + hi) / 2, float(np.max(hi - lo))
                 page.evaluate('([n]) => window.__atlasRenderer.filter(n, null)', [names[body].get(job['cat'], [])])
                 for sys_ in ('integumentary', 'adipose'):
