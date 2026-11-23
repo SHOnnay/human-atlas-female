@@ -429,6 +429,9 @@ def _min_rotation(a, b):
     return np.eye(3) + vx + vx @ vx * ((1 - c) / s ** 2)
 
 
+HAND_BONE_RE = re.compile(r'carp|metacarp|phalan.*(finger|thumb)|(finger|thumb).*phalan|scaphoid|lunate|triquetr|pisiform|trapezi|capitate|hamate|sesamoid.*hand', re.I)
+
+
 def articulated_arms(M, male, atlas, hra, shift, report):
     """Arms change pose (male hanging -> female A-pose), which a smooth warp shears. Upper arm,
     forearm and hand are therefore moved as rigid segments about the male shoulder, elbow and wrist
@@ -441,6 +444,7 @@ def articulated_arms(M, male, atlas, hra, shift, report):
     f_skin = trimesh.Trimesh(p, i.reshape(-1, 3), process=False)
     lm_m, lm_f = bw.body_levels(m_skin), bw.body_levels(f_skin)
     out = {}
+    fshell = [None]; hand_fit = []
 
     def arc(poly):
         return np.r_[0, np.cumsum(np.linalg.norm(np.diff(poly, axis=0), axis=1))]
@@ -491,20 +495,60 @@ def articulated_arms(M, male, atlas, hra, shift, report):
         joints_m = [S_m, at(cm, sE), at(cm, sW), tip]
         joints_f = [S_f, E_f, W_f, T_f]
         Rs, ts = [], []
+        chain = STATE.get('body') == 'hybrid'
+        sc = Lf / Lm if chain else 1.0
+        P = joints_f[0]
+        seg_scale = []
         for k in range(3):
             R = _min_rotation(joints_m[k + 1] - joints_m[k], joints_f[k + 1] - joints_f[k])
-            ts.append(joints_f[k] - R @ joints_m[k]); Rs.append(R)
+            if chain and k == 2:
+                # Milestone 7: the hand is CHAINED to the forearm at the bone wrist (distal radius), so
+                # the carpals stay on the radius (no radius/ulna-carpal gap). Upper arm and forearm keep
+                # their own segment transforms (chaining from the skin-estimated elbow displaced them).
+                # Rotation about the wrist (roll, flexion, deviation) searched so the male hand bones lie
+                # inside her real skin hand as far as a rigid hand can.
+                from scipy.spatial.transform import Rotation as Rot
+                if fshell[0] is None:
+                    fshell[0] = ml.SkinShell(f_skin)
+                hb = np.vstack([male[q]['pos'] for q, mm in M.items() if mm['system'] == 'skeletal'
+                                and HAND_BONE_RE.search(mm['name']) and np.sign(male[q]['pos'][:, 0].mean()) == sign])[::3]
+                Wf = Rs[1] @ wrist + ts[1]
+                ax = (joints_f[3] - joints_f[2]); ax /= np.linalg.norm(ax)
+                best = (np.inf, R)
+                for roll in range(-90, 91, 15):
+                    for flex in range(-30, 31, 10):
+                        for dev in range(-30, 31, 10):
+                            Rx = Rot.from_rotvec(ax * np.radians(roll)).as_matrix() @ Rot.from_euler('xz', [flex, dev], degrees=True).as_matrix()
+                            Rc = Rx @ R
+                            q = (Rc @ (hb - wrist).T).T + Wf
+                            o = int(fshell[0].outside(q, 0.002).sum())
+                            if o < best[0]:
+                                best = (o, Rc)
+                R = best[1]
+                hand_fit.append(best[0])
+                ts.append(Wf - R @ wrist); Rs.append(R)
+            else:
+                ts.append(joints_f[k] - R @ joints_m[k]); Rs.append(R)
+            seg_scale.append(1.0)
         bounds = [0.0, sE, sW, Lm]
-        moved = 0
+        moved = 0; checked = 0; straps = []
         for pid, m in M.items():
             src = male[pid]['pos']
             c = src.mean(0)
             if np.sign(c[0]) != sign:
                 continue
             s_c, d_c = param(cm, c)
-            if d_c > 0.06 or s_c <= 0.0:
+            hand_bone = chain and m['system'] == 'skeletal' and HAND_BONE_RE.search(m['name'])
+            if (d_c > 0.06 or s_c <= 0.0) and not hand_bone:
                 continue                              # not an arm part (torso, thigh)
             s_v = param_many(cm, src)
+            if chain and m['system'] == 'skeletal' and (s_c > 0.08 or hand_bone):
+                # a bone is never split between segments: the whole bone follows the segment of its centroid
+                k = 2 if hand_bone else min(max(int(np.searchsorted(bounds, s_c) - 1), 0), 2)
+                m['pos'] = (Rs[k] @ src.T).T + ts[k]
+                m['arm_segment'] = k
+                moved += 1
+                continue
             new = np.zeros_like(src); wsum = np.zeros(len(src))
             for k in range(3):
                 lo, hi = bounds[k], bounds[k + 1]
@@ -517,8 +561,20 @@ def articulated_arms(M, male, atlas, hra, shift, report):
             new /= np.maximum(wsum, 1e-9)[:, None]
             near_shoulder = 1 - ml.smoothstep(0.02, 0.08, s_v)   # blend into the body warp proximally
             m['pos'] = m['pos'] * near_shoulder[:, None] + new * (1 - near_shoulder)[:, None]
+            if chain and m['system'] == 'muscular' and s_c > sE - 0.03:
+                # forearm / hand muscle: length (principal extent) must stay within 10 % of male x arm scale
+                ax = np.linalg.svd(src - src.mean(0), full_matrices=False)[2][0]
+                k0 = min(max(int(np.searchsorted(bounds, s_c) - 1), 0), 2)
+                L0 = np.ptp(src @ ax) * seg_scale[k0]
+                L1 = np.ptp(m['pos'] @ np.linalg.svd(m['pos'] - m['pos'].mean(0), full_matrices=False)[2][0])
+                if abs(L1 / max(L0, 1e-9) - 1) > 0.10:
+                    k = int(np.searchsorted(bounds, s_c) - 1); k = min(max(k, 0), 2)
+                    m['pos'] = (Rs[k] @ src.T).T + ts[k]      # re-fit: carried whole by its segment
+                    straps.append(m['name'])
+                checked += 1
             moved += 1
-        out[side] = {'parts': moved, 'joint_fractions': [float(sE / Lm), float(sW / Lm)],
+        out[side] = {'parts': moved, 'hand_bone_samples_outside_after_search': hand_fit[-1] if hand_fit else None, 'forearm_hand_muscles_checked': checked,
+                     'straps_refit': straps, 'joint_fractions': [float(sE / Lm), float(sW / Lm)],
                      'female_joints': [j.tolist() for j in joints_f]}
     report['articulated_arms'] = out
     log('articulated arms', {k: v['parts'] for k, v in out.items()})
@@ -923,7 +979,24 @@ def keep_inside_skin(shell, M, F, report, names=None):
                 if i in M:
                     M[i]['pos'] = ml.apply_similarity(M[i]['pos'], s_, R_, t_)
             out['head_group'] = {'parts': len(head), **how, 'left_outside': int(shell.outside(new, 0.0005).sum())}
+    # Milestone 7: forearm + hand bones of each side move as ONE rigid group (like the skull), so the
+    # wrist and finger joints are never taken apart bone by bone.
+    limb = set()
+    for sgn, side in ((1, 'L'), (-1, 'R')):
+        g = [i for i, m in M.items() if m.get('arm_segment') in (1, 2) and np.sign(m['pos'][:, 0].mean()) == sgn]
+        if not g:
+            continue
+        limb.update(g)
+        cat = np.vstack([M[i]['pos'] for i in g])
+        if shell.outside(cat, 0.0005).sum():
+            new, how = rigid_inside(shell, cat, margin=0.001, tolerance=0.002, min_scale=0.95)
+            s_, R_, t_ = ml.umeyama(cat, new)
+            for i in g:
+                M[i]['pos'] = ml.apply_similarity(M[i]['pos'], s_, R_, t_)
+            out['forearm_hand_group_' + side] = {'parts': len(g), **how, 'left_outside': int(shell.outside(new, 0.0005).sum())}
     for i, m in M.items():
+        if i in limb:
+            continue
         # 3 mm detection margin: absorbs the later 0.2 % simplification error, so the packaged
         # (simplified) meshes stay inside the skin too.
         bad = shell.outside(m['pos'], 0.003).sum()
@@ -1295,7 +1368,7 @@ def write_package(M, F, G, extra, atlas, removed, report):
                  'accuracy': 'scan-derived', 'note': f"Scan-derived: the real Visible Human Female bone ({m['scan_derived']}), "
                  'shown in place of the BodyParts3D shape (same ID, name and system).'}, m['pos'], None, m['idx'])
             continue
-        add({'id': p['id'], 'name': p['name'], 'conceptId': p['conceptId'], 'system': p['system'], 'source': 'bp3d',
+        add({'id': p['id'], 'name': p['name'], 'conceptId': p['conceptId'], 'system': m.get('system', p['system']), 'source': 'bp3d',
              'accuracy': 'warped', 'note': note}, m['pos'], None, m['idx'])
     xref = xrefs['uberon']
     fixes = {}
@@ -1578,17 +1651,21 @@ def apply_registered(M, registered, hra, shift, report):
     log('vhf registered applied', used, 'scan-derived bones', len(scan))
 
 
-FASCIA = re.compile(r'fascia|aponeuros|iliotibial|tract$|retinaculum', re.I)
+FASCIA = re.compile(r'^(?!.*tensor).*(fascia|aponeuros|iliotibial|tract$|retinaculum)', re.I)   # TFL is a muscle
 
 
-def refit_fasciae(M, report, offset=0.0008):
+THIGH_SHEET = re.compile(r'iliotibial|fascia lata|fascia of (the )?thigh|crural fascia', re.I)
+
+
+def refit_fasciae(M, report, offset=0.0008, pattern=None, full=False, key='fascia_refit'):
     """Fasciae / aponeuroses are never warped freely: each is re-fitted as a thin shell on the outer
-    surface of the muscles it covers (closest muscle surface point + 0.8 mm along that face's normal)."""
+    surface of the muscles it covers (closest muscle surface point + 0.8 mm along that face's normal).
+    full=True (milestone 7 thigh sheets): every vertex is snapped, so nothing stands off the muscle."""
     import trimesh
     muscles = [m for m in M.values() if m['system'] == 'muscular' and not FASCIA.search(m['name'])]
     n = 0
     for m in M.values():
-        if not FASCIA.search(m['name']):
+        if not FASCIA.search(m['name']) or (pattern is not None and not pattern.search(m['name'])):
             continue
         lo, hi = m['pos'].min(0) - 0.03, m['pos'].max(0) + 0.03
         near = [q for q in muscles if np.all(q['pos'].max(0) > lo) and np.all(q['pos'].min(0) < hi)]
@@ -1601,11 +1678,11 @@ def refit_fasciae(M, report, offset=0.0008):
         sgn = np.sign((out * nrm).sum(1)); sgn[sgn == 0] = 1
         new = cp + nrm * sgn[:, None] * offset
         # only snap vertices that are near a muscle (within 2 cm); others keep the warp
-        w = (1 - ml.smoothstep(0.01, 0.02, d))[:, None]
+        w = np.ones((len(d), 1)) if full else (1 - ml.smoothstep(0.01, 0.02, d))[:, None]
         m['pos'] = m['pos'] * (1 - w) + new * w
         n += 1
-    report['fascia_refit'] = {'parts': n}
-    log('fascia refit', n)
+    report[key] = {'parts': n}
+    log(key, n)
 
 
 def vhf_breast_fat(F, M, skin, report, inset=0.0025):
@@ -1618,11 +1695,19 @@ def vhf_breast_fat(F, M, skin, report, inset=0.0025):
     wall = trimesh.util.concatenate([ml.to_trimesh(m['pos'], m['idx']) for m in M.values()
                                      if re.search(r'pectoralis|serratus anterior|intercostal|\brib\b|costal cartilage', m['name'], re.I)])
     P = np.asarray(skin.vertices); N = np.asarray(skin.vertex_normals)
+    st = [m['pos'] for m in M.values() if re.search(r'sternum|manubrium|xiphoid', m['name'], re.I)]
+    sternal_edge = float(np.abs(np.vstack(st)[:, 0]).max()) + 0.004 if st else 0.025
+    report['breast_sternal_edge_m'] = sternal_edge
     extra = []
     for side, word in (('L', 'Left'), ('R', 'Right')):
         pts = np.vstack([f['pos'] for n, f in F.items() if f['group'] == 'breast_' + side])
         d, _ = cKDTree(pts).query(P)
         region = d < 0.010            # only skin directly over the real breast (no shell toward the axilla)
+        # Milestone 7: this breast's footprint only. Cut at the sternal edge (skin over the sternum stays
+        # bare: intermammary cleft) and along the inframammary fold (below the lowest real lobe).
+        sgn = 1 if side == 'L' else -1
+        region &= (P[:, 0] * sgn) > sternal_edge
+        region &= P[:, 1] > pts[:, 1].min() - 0.004
         if region.sum() < 50:
             continue
         faces = skin.faces[region[skin.faces].all(1)]
@@ -1733,6 +1818,10 @@ def main():
                 continue
             M[p['id']] = {'pos': warp(male[p['id']]['pos']), 'idx': male[p['id']]['idx'], 'name': p['name'], 'system': p['system']}
         log('warped', len(M), 'male parts (%s body)' % args.body)
+        if hybrid:
+            for m in M.values():               # milestone 7: the IT tract is fascia, not bone
+                if re.search(r'iliotibial', m['name'], re.I):
+                    m['system'] = 'connective'
         apply_registered(M, registered, hra, shift, report)
         articulated_arms(M, male, atlas, hra, shift, report)      # arms: rigid segments on the real VHF arm axes
         if hybrid:
@@ -1804,6 +1893,8 @@ def main():
     skin = ml.to_trimesh(F['VH_F_skin']['pos'], F['VH_F_skin']['idx'])
     shell = ml.SkinShell(skin)
     keep_inside_skin(shell, M, F, report)
+    if args.body == 'hybrid':      # milestone 7: thigh sheets as a 0.8 mm shell on the final muscles
+        refit_fasciae(M, report, pattern=THIGH_SHEET, full=True, key='thigh_sheet_refit')
     G = generate(F, M, skin, ctx['lm_pf'], report, args.blender)
     check_generated(G, F, M, shell, report)
     # Phase 4: every generated vulval / perineal part stays >= 2 mm inside the body surface.

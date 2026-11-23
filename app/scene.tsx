@@ -108,7 +108,7 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
     const visible=new Set(s.visible),selection=new Set(s.selected);
     const skinMat=mats.get('integumentary');if(skinMat){skinMat.opacity=s.skinOpacity??.2;skinMat.depthWrite=false;}
     // Breast fat turns semi-transparent while a structure inside it (gland, duct, ligament) is selected.
-    const fat=mats.get('adipose');if(fat){const see=s.selected.length>0&&!atlas.parts.some(p=>selection.has(p.id)&&p.system==='adipose');fat.opacity=see?.2:.45;fat.depthWrite=false;}
+    const fat=mats.get('adipose');if(fat){const see=s.selected.length>0&&!atlas.parts.some(p=>selection.has(p.id)&&p.system==='adipose');fat.opacity=see?.2:.35;fat.depthWrite=false;}
     const pelvicIsolate=s.isolate&&atlas.parts.some(p=>selection.has(p.id)&&(p.system==='reproductive'||p.system==='urinary'));
     const visibleParts=atlas.parts.filter(p=>s.isolate?selection.has(p.id):visible.has(p.system)||selection.has(p.id));
     const nextLayoutKey=visibleParts.map(p=>p.id).join(',')+':'+camera.aspect.toFixed(3);
