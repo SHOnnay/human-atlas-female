@@ -249,3 +249,12 @@ The male files are not modified.
 - Each body in a composite is framed on its own geometry.
 - Hand views are found from each body's own finger and wrist bones, and both hands are rendered.
 - New views: thigh close-up and thigh skeleton.
+
+## Milestone 8 (hybrid)
+
+- **Forearm and hand scale (deviation from the brief).** The brief asked for rotation only, but the male wrist and hand are wider than her skin. The forearm/hand pre-fit therefore allows rotation up to ±6° plus a uniform scale of up to 12 % (1.00→0.88) about the elbow. Bones stay rigid within a part (similarity transform). The fitted scale per side is in `report.json` (`forearm_hand_scale`).
+- **Joint chain fit.** The carpus is seated at the radiocarpal joint with a 2 mm gap. Each phalanx rotates about its joint, within flexion and abduction ranges taken from general anatomical knowledge (not cited to a source), to follow the skin-finger centreline. A rescue translation of up to 5 mm is allowed. Bone clearance inside the skin is 2.5 mm, because packaging moves vertices up to 2 mm.
+- **Bone-attached skinning.** Hand soft tissue is re-skinned from the male rest pose using per-bone similarity transforms. Vertices still outside the skin are pulled toward their nearest hand bone, only within 3 cm of the hand bones (superficial forearm veins are left alone). A final containment pass after the stretch relax moves only outside vertices, with a 3 mm margin.
+- **Breast fat.** The footprint is a soft field with a curved sternal edge and a smooth thickness taper. Its deep surface stays 2 cm from the midline. Opacity is 0.35 in every view mode for the female only; the male atlas has no adipose parts, so its rendering is unchanged.
+- **IT tract.** The sheet is bound to the male hip and thigh muscles with barycentric coordinates and re-evaluated on hers. Tensor fasciae latae is reclassified from connective to muscular so it renders as muscle. **The atlas has no gluteal aponeurosis part** (checked across all names), so that part of the brief could not be built.
+- **Hand framing.** Each hand view is framed on the projected extent of that body's hand bones, at a 70 % fill target.

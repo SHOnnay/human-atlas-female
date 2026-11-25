@@ -431,3 +431,29 @@ Section Dice is information only (overlays in docs/screenshots/sections/).
 | No-regression | — | — | Head, spine, ribs and pelvic organs unchanged (uterus images identical pixel for pixel) | The only change flagged is the intended removal of the IT-tract plates from the leg views |
 
 Each reviewer listed every image it viewed. Those lists are in the milestone report.
+
+## Milestone 8: articulated hands, breast fat, IT tract, hand framing (branch `hybrid`, not merged by rule)
+
+### Gates (final build)
+| Gate | Target | Result |
+|---|---|---|
+| Parts through skin | ≤ 25; zero among touched parts | **19 — PASS**; none is a hand, forearm, breast, hip or thigh part touched this milestone (trapezius, nasal cartilages, platysma, sternocleidomastoid, occipital bone, ear, foot/leg parts) |
+| Stretch (> 2×) | ≤ 0.49 % | 9,038 / 1,969,056 = **0.459 % — PASS** |
+| Floating | 0 | 0 — PASS |
+| Breast fat | 0 vertices outside skin, none within 1 cm of midline | 0 outside; nearest vertex 5.1 cm (R) / 5.6 cm (L) from midline — PASS |
+| Wrist gap | 1–3 mm | 2.0 mm both sides — PASS |
+| npm run check, validate-atlas, validate-interactions, build, verify-browser | pass | **all PASS** |
+| Male package | unchanged | unchanged (byte-identical) |
+
+The numeric gates pass, but the visual reviews below do not. The gates check containment and stretch only; they do not catch tissue that stays inside the skin but is torn or misplaced.
+
+### Reviewers (3 rounds, the maximum)
+| Item | Round 1 | Round 2 | Round 3 (final) vs previous hybrid | Final verdict | Main remaining defect (round 3) |
+|---|---|---|---|---|---|
+| 1 Hands | FAIL | improved, FAIL | improved | **FAIL** | Red triangle at left fingertips; loose strands by both thumbs; right-hand sheets/spikes, jumbled phalanx rows, a loose carpal on the dorsum |
+| 2 Breast fat | FAIL | improved, FAIL | improved (much better than v4) | **FAIL** | Webapp side views: straight darker rim at the back edge; small sharp medial tongue (webapp oblique); webapp opacity reads ~45–50 % |
+| 3 IT tract | FAIL | slightly improved, FAIL | improved | **FAIL** | Upper tract is a separate spike, not a shell on TFL/glutes to the iliac crest; broad flare in back views; flaps at the crest |
+| 4 Hand framing | FAIL | improved, FAIL | improved | **FAIL** | Fill 65–85 % of height, but forearm still in frame and hands off-centre (low; male left, female right) |
+| No-regression | no regression | no regression | no regression | **PASS** | Male compare renders pixel-identical; webapp male differs by ≤ 168 scattered px (noise). Reviewer opened 10 images and pixel-diffed the other pairs |
+
+Each reviewer listed the images it viewed; the lists are in the milestone report. Not fixed: all four items.
