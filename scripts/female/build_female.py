@@ -30,6 +30,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
 import body_target as bt  # noqa: E402
+from hand_fit import articulated_hands  # noqa: E402
 import body_warp as bw  # noqa: E402
 import meshlib as ml  # noqa: E402
 
@@ -1657,12 +1658,55 @@ FASCIA = re.compile(r'^(?!.*tensor).*(fascia|aponeuros|iliotibial|tract$|retinac
 THIGH_SHEET = re.compile(r'iliotibial|fascia lata|fascia of (the )?thigh|crural fascia', re.I)
 
 
-def refit_fasciae(M, report, offset=0.0008, pattern=None, full=False, key='fascia_refit'):
+HIP_MUSCLE = re.compile(r'tensor fasciae latae|gluteus (maximus|medius)', re.I)
+
+
+def bind_sheets(M, male, report, pattern, offset=0.0008):
+    """Milestone 8 round 2: a thigh sheet (IT tract) is bound in the MALE source to the muscles under
+    it: each sheet vertex -> nearest triangle of the male muscles (barycentric coordinates + offset along
+    the face normal). The binding is evaluated on the same triangles of her warped muscles (same mesh
+    topology), so the sheet lies on her muscle surface and stretches only as the muscle does. Its top
+    therefore follows TFL / gluteus medius up to the iliac crest instead of standing off."""
+    import trimesh
+    out = {}
+    for pid, m in M.items():
+        if not pattern.search(m['name']) or pid not in male:
+            continue
+        side = 'left' if 'left' in m['name'].lower() else 'right'
+        S = male[pid]['pos']
+        lo, hi = S.min(0) - 0.04, S.max(0) + 0.04
+        tg = [q for q, mm in M.items() if q != pid and q in male and len(male[q]['pos']) == len(mm['pos'])
+              and (mm['system'] == 'muscular' or HIP_MUSCLE.search(mm['name'])) and not FASCIA.search(mm['name'])
+              and side in mm['name'].lower()
+              and np.all(male[q]['pos'].max(0) > lo) and np.all(male[q]['pos'].min(0) < hi)]
+        if not tg:
+            continue
+        Vm, Vf, Fc, off = [], [], [], 0
+        for q in tg:
+            Vm.append(male[q]['pos']); Vf.append(M[q]['pos']); Fc.append(M[q]['idx'].reshape(-1, 3) + off); off += len(male[q]['pos'])
+        Vm, Vf, Fc = np.vstack(Vm), np.vstack(Vf), np.vstack(Fc)
+        Um = trimesh.Trimesh(Vm, Fc, process=False)
+        cp, d, tri = trimesh.proximity.closest_point(Um, S)
+        bc = trimesh.triangles.points_to_barycentric(Vm[Fc[tri]], cp)
+        Uf = trimesh.Trimesh(Vf, Fc, process=False)
+        base = (Vf[Fc[tri]] * bc[:, :, None]).sum(1)
+        nf = Uf.face_normals[tri]
+        sgn = np.sign(((S - cp) * Um.face_normals[tri]).sum(1)); sgn[sgn == 0] = 1
+        m['pos'] = base + nf * (sgn * offset)[:, None]
+        out[m['name']] = {'targets': len(tg), 'male_bind_dist_p95_mm': float(np.quantile(d, 0.95) * 1000)}
+    report['sheet_binding'] = out
+    log('sheet binding', {k: v['targets'] for k, v in out.items()})
+
+
+def refit_fasciae(M, report, offset=0.0008, pattern=None, full=False, key='fascia_refit', extra_targets=None, male=None):
     """Fasciae / aponeuroses are never warped freely: each is re-fitted as a thin shell on the outer
     surface of the muscles it covers (closest muscle surface point + 0.8 mm along that face's normal).
-    full=True (milestone 7 thigh sheets): every vertex is snapped, so nothing stands off the muscle."""
+    full=True (milestone 7 thigh sheets): every vertex is snapped, so nothing stands off the muscle.
+    extra_targets (milestone 8): parts that are muscle but not stored as 'muscular' (the tensor fasciae
+    latae is in the connective system), so the upper IT tract lies on TFL and the glutei, not off them."""
     import trimesh
-    muscles = [m for m in M.values() if m['system'] == 'muscular' and not FASCIA.search(m['name'])]
+    muscles = [m for m in M.values() if (m['system'] == 'muscular' and not FASCIA.search(m['name']))
+               or (extra_targets is not None and extra_targets.search(m['name']))]
     n = 0
     for m in M.values():
         if not FASCIA.search(m['name']) or (pattern is not None and not pattern.search(m['name'])):
@@ -1679,7 +1723,26 @@ def refit_fasciae(M, report, offset=0.0008, pattern=None, full=False, key='fasci
         new = cp + nrm * sgn[:, None] * offset
         # only snap vertices that are near a muscle (within 2 cm); others keep the warp
         w = np.ones((len(d), 1)) if full else (1 - ml.smoothstep(0.01, 0.02, d))[:, None]
-        m['pos'] = m['pos'] * (1 - w) + new * w
+        snapped = m['pos'] * (1 - w) + new * w
+        pid = next((k for k, v in M.items() if v is m), None)
+        if full and male is not None and pid in male and len(male[pid]['pos']) == len(m['pos']):
+            # milestone 8: the snap may not stretch a triangle past 1.9x its source: diffuse the snap
+            # displacement over the sheet where it would (the shell then follows the muscle smoothly).
+            from scipy.sparse import coo_matrix
+            t3 = m['idx'].reshape(-1, 3); n_ = len(m['pos'])
+            rr = np.r_[t3[:, 0], t3[:, 1], t3[:, 2], t3[:, 1], t3[:, 2], t3[:, 0]]
+            cc = np.r_[t3[:, 1], t3[:, 2], t3[:, 0], t3[:, 0], t3[:, 1], t3[:, 2]]
+            A = coo_matrix((np.ones(len(rr)), (rr, cc)), shape=(n_, n_)).tocsr(); A.data[:] = 1.0
+            deg = np.maximum(np.asarray(A.sum(1)).ravel(), 1)
+            Dd = snapped - m['pos']
+            before = int((edge_ratios(male[pid]['pos'], m['pos'], m['idx']) > 2).any(1).sum())
+            for _ in range(200):
+                bad_t = (edge_ratios(male[pid]['pos'], m['pos'] + Dd, m['idx']) > 1.9).any(1)
+                if int(bad_t.sum()) <= before + 120:   # up to 120 extra per sheet: the top lies on the muscle
+                    break
+                Dd = 0.5 * Dd + 0.5 * (A @ Dd) / deg[:, None]
+            snapped = m['pos'] + Dd
+        m['pos'] = snapped
         n += 1
     report[key] = {'parts': n}
     log(key, n)
@@ -1699,15 +1762,23 @@ def vhf_breast_fat(F, M, skin, report, inset=0.0025):
     sternal_edge = float(np.abs(np.vstack(st)[:, 0]).max()) + 0.004 if st else 0.025
     report['breast_sternal_edge_m'] = sternal_edge
     extra = []
+    bshell = [None]; fat_check = {}
     for side, word in (('L', 'Left'), ('R', 'Right')):
         pts = np.vstack([f['pos'] for n, f in F.items() if f['group'] == 'breast_' + side])
         d, _ = cKDTree(pts).query(P)
-        region = d < 0.010            # only skin directly over the real breast (no shell toward the axilla)
-        # Milestone 7: this breast's footprint only. Cut at the sternal edge (skin over the sternum stays
-        # bare: intermammary cleft) and along the inframammary fold (below the lowest real lobe).
+        # Milestone 8: the footprint is the positive part of ONE smooth field (soft minimum of: nearness
+        # to the real breast tissue, distance past the sternal edge, height above the inframammary fold),
+        # so its border is a smooth curve (no straight cuts) and the thickness tapers to zero along it.
         sgn = 1 if side == 'L' else -1
-        region &= (P[:, 0] * sgn) > sternal_edge
-        region &= P[:, 1] > pts[:, 1].min() - 0.004
+        a = (0.012 - d) / 0.012
+        # medial border curves laterally above and below the breast centre (a parabola, not a vertical cut)
+        yc = float(np.median(pts[:, 1]))
+        edge_y = sternal_edge + 0.035 * ((P[:, 1] - yc) / 0.07) ** 2
+        b = ((P[:, 0] * sgn) - edge_y) / 0.020
+        c = (P[:, 1] - (pts[:, 1].min() - 0.004)) / 0.020
+        kk = 6.0
+        field = -np.log(np.exp(-kk * a) + np.exp(-kk * b) + np.exp(-kk * c)) / kk
+        region = field > 0
         if region.sum() < 50:
             continue
         faces = skin.faces[region[skin.faces].all(1)]
@@ -1730,20 +1801,42 @@ def vhf_breast_fat(F, M, skin, report, inset=0.0025):
         be = np.unique(comp.edges_sorted[trimesh.grouping.group_rows(comp.edges_sorted, require_count=1)])
         ring = np.full(len(gi), 99.0); ring[be] = 0
         nb = comp.vertex_neighbors
-        for k in range(1, 12):
+        for k in range(1, 22):
             cur = np.where(ring == k - 1)[0]
             for i in cur:
                 for j in nb[i]:
                     if ring[j] > k:
                         ring[j] = k
-        t = ml.smoothstep(0, 8, ring)
-        back = front - n * (0.0004 + t * depth)[:, None]
+        # Round 1 review: still straight rims. Milestone 8 taper: over 18 rings from the border, over the
+        # whole positive range of the footprint field, and toward the sternum over 4 cm, so the thickness
+        # reaches zero along a smooth curve with no cut face.
+        med = ml.smoothstep(0.0, 0.04, P[gi, 0] * sgn - edge_y[gi])
+        t = ml.smoothstep(0, 18, ring) * ml.smoothstep(0.0, 1.0, field[gi]) * med
+        thick = 0.0004 + t * depth
+        # The deep surface never reaches within 1.2 cm of the midline (the inward normal near the
+        # sternum points medially): shorten the depth there.
+        nx = -n[:, 0] * sgn
+        lim = np.where(nx < -1e-6, (front[:, 0] * sgn - 0.020) / np.maximum(-nx, 1e-6), np.inf)
+        thick = np.clip(np.minimum(thick, lim), 0.0002, None)
+        back = front - n * thick[:, None]
         nv = len(gi)
         bedges = comp.edges_sorted[trimesh.grouping.group_rows(comp.edges_sorted, require_count=1)]
         sidef = np.vstack([np.c_[bedges[:, 0], bedges[:, 1], bedges[:, 1] + nv], np.c_[bedges[:, 0], bedges[:, 1] + nv, bedges[:, 0] + nv]])
         m = trimesh.Trimesh(np.vstack([front, back]), np.vstack([comp.faces, comp.faces[:, ::-1] + nv, sidef]), process=True)
         trimesh.repair.fix_normals(m)
-        trimesh.smoothing.filter_taubin(m, iterations=10)
+        trimesh.smoothing.filter_taubin(m, iterations=30)   # round 2: straight rim seen edge-on at the chest wall
+        # Milestone 8: nothing outside the skin and nothing within 1 cm of the midline.
+        V = np.asarray(m.vertices).copy()
+        if bshell[0] is None:
+            bshell[0] = ml.SkinShell(skin)
+        V = bshell[0].keep_inside(V, margin=0.001)[0]
+        bad = np.where(bshell[0].outside(V))[0]
+        if len(bad):                       # hard fallback: nearest skin point, 1.5 mm inward
+            _, i = bshell[0].tree.query(V[bad])
+            V[bad] = bshell[0].skin.vertices[i] - bshell[0].normals[i] * 0.0015
+        V[:, 0] = sgn * np.maximum(V[:, 0] * sgn, 0.0105)   # safety only
+        m = trimesh.Trimesh(V, m.faces, process=False)
+        fat_check[side] = {'outside_skin': int(bshell[0].outside(V).sum()), 'min_abs_x_m': float(np.abs(V[:, 0]).min())}
         w = word.lower()
         extra.append(({'id': f'GEN_breast_adipose_{w}', 'name': f'{word} breast adipose tissue', 'conceptId': f'GEN:breast-adipose-{w}',
                        'system': 'adipose', 'source': 'generated', 'accuracy': 'generated',
@@ -1753,7 +1846,8 @@ def vhf_breast_fat(F, M, skin, report, inset=0.0025):
     # The real HRA interlobar fat is replaced by this volume (the brief's breast fat definition).
     for n in [n for n, f in F.items() if f['group'].startswith('breast') and re.search(r'_fat_', n)]:
         F.pop(n)
-    report['vhf_breast_fat'] = {'parts': len(extra)}
+    report['vhf_breast_fat'] = {'parts': len(extra), 'check': fat_check}
+    log('breast fat', fat_check)
     return extra
 
 
@@ -1822,6 +1916,8 @@ def main():
             for m in M.values():               # milestone 7: the IT tract is fascia, not bone
                 if re.search(r'iliotibial', m['name'], re.I):
                     m['system'] = 'connective'
+                if re.search(r'tensor fasciae latae', m['name'], re.I):
+                    m['system'] = 'muscular'   # milestone 8: TFL is a muscle (atlas filed it as connective, so it rendered as a pale plate)
         apply_registered(M, registered, hra, shift, report)
         articulated_arms(M, male, atlas, hra, shift, report)      # arms: rigid segments on the real VHF arm axes
         if hybrid:
@@ -1894,7 +1990,9 @@ def main():
     shell = ml.SkinShell(skin)
     keep_inside_skin(shell, M, F, report)
     if args.body == 'hybrid':      # milestone 7: thigh sheets as a 0.8 mm shell on the final muscles
-        refit_fasciae(M, report, pattern=THIGH_SHEET, full=True, key='thigh_sheet_refit')
+        refit_fasciae(M, report, pattern=THIGH_SHEET, full=True, key='thigh_sheet_refit', extra_targets=HIP_MUSCLE, male=male)
+        bind_sheets(M, male, report, re.compile(r'iliotibial', re.I))   # round 2: the IT tract rides on her muscles
+        articulated_hands(M, skin, report, male=male)    # milestone 8: jointed hand fit + bone skinning
     G = generate(F, M, skin, ctx['lm_pf'], report, args.blender)
     check_generated(G, F, M, shell, report)
     # Phase 4: every generated vulval / perineal part stays >= 2 mm inside the body surface.
@@ -1936,6 +2034,9 @@ def main():
         for s, g in G.items():
             ml.write_obj(dbg / f"g_{g['system']}_{s}.obj", g['pos'], g['idx'])
     relax_corrections(M, male, shell, report)
+    if args.body == 'hybrid':
+        import hand_fit
+        hand_fit.final_containment(M, shell, report)     # milestone 8: hand soft tissue stays inside
     stretch_report(M, male, report)
     write_package(M, F, G, extra, atlas, removed, report)
     (WORK / 'report.json').write_text(json.dumps(report, indent=1, default=float))
