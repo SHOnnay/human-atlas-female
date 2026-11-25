@@ -62,7 +62,7 @@ for job in jobs:
         centre, size = frame(*fr) if fr else frame(job['lo'], job['hi'])
         bpy.ops.wm.read_factory_settings(use_empty=True)
         scene = bpy.context.scene
-        ALPHA.clear(); ALPHA.update(job.get('alpha', {}))
+        ALPHA.clear(); ALPHA.update({'adipose': 0.35}); ALPHA.update(job.get('alpha', {}))   # female fat 35 % in every view (male has no fat parts)
         d = root / body / job['cat']
         for f in (sorted(d.glob('*.obj')) if d.exists() else []):
             load_obj(f)
@@ -80,6 +80,10 @@ for job in jobs:
         cam.data.clip_end = size * 20
         for v in job['views']:
             d = DIRS[v]
+            vf = job.get('view_frames', {}).get(body, {}).get(v)
+            if vf:                      # per-view hand framing (projected hand bones)
+                centre = Vector(B(vf[0])); size = vf[1]
+                cam.data.ortho_scale = size * 1.08; cam.data.clip_end = size * 20
             cam.location = centre + d * size * 4
             cam.rotation_euler = (-d).to_track_quat('-Z', 'Y').to_euler()
             scene.render.filepath = str(root / f"{body}_{job['cat']}_{v}.png")

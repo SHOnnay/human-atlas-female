@@ -70,9 +70,12 @@ def main():
                 centre, size = (lo + hi) / 2, float(np.max(hi - lo))
                 page.evaluate('([n]) => window.__atlasRenderer.filter(n, null)', [names[body].get(job['cat'], [])])
                 for sys_ in ('integumentary', 'adipose'):
-                    page.evaluate('([s, v]) => window.__atlasRenderer.opacity(s, v)', [sys_, job.get('alpha', {}).get(sys_, 1.0)])
+                    page.evaluate('([s, v]) => window.__atlasRenderer.opacity(s, v)', [sys_, job.get('alpha', {}).get(sys_, 0.35 if (body == 'female' and sys_ == 'adipose') else 1.0)])
                 for v in job['views']:
                     d = atlas_dir(DIRS_B[v])
+                    vf = job.get('view_frames', {}).get(body, {}).get(v)
+                    if vf:
+                        centre, size = np.array(vf[0]), float(vf[1])
                     pos = centre + d * size * 8
                     page.evaluate('([t, p, h]) => window.__atlasRenderer.camera(t, p, h)', [centre.tolist(), pos.tolist(), size * 1.08])
                     page.wait_for_timeout(400)

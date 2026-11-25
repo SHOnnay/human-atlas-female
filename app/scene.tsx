@@ -46,8 +46,11 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
    for(const t of targets){const dx=Math.max(t.left-x,0,x-t.right),dy=Math.max(t.top-y,0,y-t.bottom),distance=Math.hypot(dx,dy);if(distance>radius)continue;const candidate=distance+Math.hypot(t.x-x,t.y-y)*.025;if(candidate<score){score=candidate;best=t.index;}}
    return best;
   };
+  // Milestone 8: the female-only material changes (translucent fat, rim-lit skin, draw order) never
+  // touch the male body, whose rendering stays exactly as on main.
+  const fem=atlas.sex==='female';
   const materialFor=(system:string)=>{
-   const m=new T.MeshStandardMaterial({color:SYSTEMS.find(s=>s.id===system)?.color??'#aebbb8',metalness:.08,roughness:.53,side:T.DoubleSide,transparent:system==='integumentary'||system==='adipose'||system==='reproductive'||system==='urinary',opacity:system==='integumentary'?.1:1,depthWrite:system!=='integumentary'});
+   const m=new T.MeshStandardMaterial({color:SYSTEMS.find(s=>s.id===system)?.color??'#aebbb8',metalness:.08,roughness:.53,side:T.DoubleSide,transparent:system==='integumentary'||(fem&&(system==='adipose'||system==='reproductive'||system==='urinary')),opacity:system==='integumentary'?.1:1,depthWrite:system!=='integumentary'});
    m.onBeforeCompile=shader=>{
     shader.uniforms.partState={value:partTexture};shader.uniforms.selectionState={value:selectionTexture};shader.uniforms.stateWidth={value:width};
     shader.vertexShader='attribute float partIndex; uniform sampler2D partState; uniform sampler2D selectionState; uniform float stateWidth; varying float partVisible; varying float partSelected;\n'+shader.vertexShader;
@@ -56,7 +59,7 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
     shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif (partVisible < 0.5) discard;');
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.85, 0.78), partSelected * 0.75);\nif (partVisible < 0.9) diffuseColor.a *= 0.22;');
     // Skin: soft rim (Fresnel) light so the translucent silhouette reads at low opacity.
-    if(system==='integumentary')shader.fragmentShader=shader.fragmentShader.replace('#include <dithering_fragment>','float skinRim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.2);\ngl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0, 0.93, 0.88), skinRim * 0.55);\ngl_FragColor.a = clamp(gl_FragColor.a + skinRim * 0.35, 0.0, 1.0);\n#include <dithering_fragment>');
+    if(fem&&system==='integumentary')shader.fragmentShader=shader.fragmentShader.replace('#include <dithering_fragment>','float skinRim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.2);\ngl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0, 0.93, 0.88), skinRim * 0.55);\ngl_FragColor.a = clamp(gl_FragColor.a + skinRim * 0.35, 0.0, 1.0);\n#include <dithering_fragment>');
    };materials.push(m);return m;
   };
   const mats=new Map(SYSTEMS.map(s=>[s.id,materialFor(s.id)]));
@@ -73,7 +76,7 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
     g.setAttribute('partIndex',new T.BufferAttribute(new Float32Array(p.vertexCount).fill(i),1));
     const list=groups.get(p.system)??[];list.push(g);groups.set(p.system,list);
    });
-   groups.forEach((gs,system)=>{const geometry=mergeGeometries(gs,false);if(!geometry)throw new Error('Could not assemble anatomy geometry.');geometries.push(geometry);const mesh=new T.Mesh(geometry,mats.get(system as never));mesh.frustumCulled=false;mesh.renderOrder=system==='integumentary'?10:system==='adipose'?5:0;scene.add(mesh);});
+   groups.forEach((gs,system)=>{const geometry=mergeGeometries(gs,false);if(!geometry)throw new Error('Could not assemble anatomy geometry.');geometries.push(geometry);const mesh=new T.Mesh(geometry,mats.get(system as never));mesh.frustumCulled=false;if(fem)mesh.renderOrder=system==='integumentary'?10:system==='adipose'?5:0;scene.add(mesh);});
    lastState=null;loaded++;onProgress(Math.round(loaded/atlas.chunks.length*100));dirty=true;
   };
   (async()=>{try{let cursor=0;await Promise.all(Array.from({length:3},async()=>{while(cursor<atlas.chunks.length){const i=cursor++;await loadChunk(i);}}));if(!disposed){ready=true;dirty=true;}}catch(e){if(!disposed)onError(e instanceof Error?e.message:'Could not load the anatomy.');}})();
