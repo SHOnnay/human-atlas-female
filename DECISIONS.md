@@ -258,3 +258,17 @@ The male files are not modified.
 - **Breast fat.** The footprint is a soft field with a curved sternal edge and a smooth thickness taper. Its deep surface stays 2 cm from the midline. Opacity is 0.35 in every view mode for the female only; the male atlas has no adipose parts, so its rendering is unchanged.
 - **IT tract.** The sheet is bound to the male hip and thigh muscles with barycentric coordinates and re-evaluated on hers. Tensor fasciae latae is reclassified from connective to muscular so it renders as muscle. **The atlas has no gluteal aponeurosis part** (checked across all names), so that part of the brief could not be built.
 - **Hand framing.** Each hand view is framed on the projected extent of that body's hand bones, at a 70 % fill target.
+
+## Milestone 9 (hybrid): hips and buttocks
+
+- **Pelvis-only registration.** Her CT is refined with one rigid move fitted on the pelvic bones only: TotalSegmentator `total` hip_left, hip_right and sacrum onto the HRA ilium, ischium, pubis and sacrum. Rotation 1.79°, translation (1.4, 7.5, −21.5) mm; median bone distance 3.25 → 2.40 mm. Stored in `report.json` (`m9_pelvis_registration`).
+- **Gluteal targets.** TotalSegmentator `total` gluteus maximus, medius and minimus masks, largest connected component only. The left gluteus maximus mask has a mislabelled blob reaching y = 1.40 m.
+- **Gluteal fit gate measured both ways.** Mean surface distance model → CT and CT → model must each be ≤ 3 mm. A one-way distance can be met by squeezing the muscle onto part of the CT shape.
+- **Attachments.** On every required bone the muscle vertices within 4 mm of the closest one are seated on the bone (+0.5 mm) and pinned. Required bones: sacrum, coccyx, ilium and femur for maximus; ilium and femur for medius and minimus. The sacrotuberous ligament is not a seat: the atlas has no mesh for it.
+- **Stretch: position-based edge clamp.** The first fit had 13,990 stretched triangles. Now edges longer than 1.8 × their male source length are shortened (pinned vertices fixed), alternating with a pull back onto the CT surface. Then a 10-step Taubin smooth of the free vertices and a second clamp. No subdivision, no CT mesh swap, no exemption.
+- **TFL not refitted.** TotalSegmentator `total` has no tensor fasciae latae label, so TFL stays warped.
+- **No fascia lata mesh.** The atlas has the concept only, so item 3 is the IT tract only. It lies 1.2 mm off TFL, gluteus maximus/medius and vastus lateralis; at 0.75 mm it flickered through the muscle after packaging.
+- **Gluteofemoral fat is `adipose`, not `connective` (deviation from the brief).** `adipose` is the system that gets the 0.35 opacity, like the breast fat.
+- **CT supine.** The donor lay on her back. The CT gives the muscle volume and attachments; the fat fills her standing (HRA) skin shape, so model and CT fat thickness differ.
+- **Section Dice by winding number.** The packaged gluteals are simplified and no longer closed, so plane sections leak. The overlay fills the model cross-section by the generalized winding number (> 0.5). That tolerates small holes and gives the same Dice on packaged and pre-packaging meshes.
+- **Fat outside-skin check.** `gate_checks.py` exempts subcutaneous fat, so `scripts/female/fat_skin_check.py` checks the packaged gluteofemoral fat against the skin.

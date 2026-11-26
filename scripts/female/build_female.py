@@ -130,10 +130,13 @@ def stretch_report(M, male, report, limit=2.0):
             w = int((edge_ratios(male[pid]['pos'], m['warp_pos'], m['idx']).max(1) > limit).sum()) if 'warp_pos' in m else -1
             by_warp += max(w, 0)
             bad[pid] = {'name': m['name'], 'triangles_over': k, 'max_ratio': float(r.max()), 'over_after_warp_only': w}
+    touched = re.compile(r'gluteus (maximus|medius|minimus)|tensor fasciae latae|iliotibial', re.I)
+    report['stretch_touched_m9'] = int(sum(b['triangles_over'] for b in bad.values() if touched.search(b['name'])))
     report['stretch'] = {'limit': limit, 'triangles': total, 'triangles_over': int(sum(b['triangles_over'] for b in bad.values())),
                          'triangles_over_after_warp_only': by_warp,
                          'parts': dict(sorted(bad.items(), key=lambda kv: -kv[1]['triangles_over'])[:40])}
-    log('stretch', report['stretch']['triangles_over'], 'of', total, 'triangles over', limit, 'x;', len(bad), 'parts')
+    log('stretch', report['stretch']['triangles_over'], 'of', total, 'triangles over', limit, 'x;', len(bad), 'parts;',
+        'gluteal region (m9 parts)', report['stretch_touched_m9'])
 
 
 def female_shoulder_bulk(M, report, factor=0.75):
@@ -1990,8 +1993,16 @@ def main():
     shell = ml.SkinShell(skin)
     keep_inside_skin(shell, M, F, report)
     if args.body == 'hybrid':      # milestone 7: thigh sheets as a 0.8 mm shell on the final muscles
+        import glute_fit           # milestone 9: her real gluteal muscles (CT), registered on the pelvis only
+        M9 = not __import__('os').environ.get('HA_M9_OFF')     # developer aid: build without milestone 9
+        if M9:
+            glute_fit.pelvis_delta(F, report)
+            glute_fit.fit_gluteals(M, F, shell, report, male)
         refit_fasciae(M, report, pattern=THIGH_SHEET, full=True, key='thigh_sheet_refit', extra_targets=HIP_MUSCLE, male=male)
         bind_sheets(M, male, report, re.compile(r'iliotibial', re.I))   # round 2: the IT tract rides on her muscles
+        if M9:
+            glute_fit.it_shell(M, report, male)                # milestone 9: IT tract on the OUTER muscle surface
+            breast_extra = breast_extra + glute_fit.gluteofemoral_fat(F, M, skin, shell, report)
         articulated_hands(M, skin, report, male=male)    # milestone 8: jointed hand fit + bone skinning
     G = generate(F, M, skin, ctx['lm_pf'], report, args.blender)
     check_generated(G, F, M, shell, report)
@@ -2005,7 +2016,7 @@ def main():
     report['generated_inside'] = gin
     keep_inside_skin(shell, M, F, report)
     if args.body in ('vhf', 'hybrid'):
-        extra = list(breast_extra)        # the real VHF skin already carries her own gluteofemoral fat
+        extra = list(breast_extra)        # breast fat (+ hybrid milestone 9: gluteofemoral fat)
     else:
         fv, fi = gluteofemoral_fat(skin, ctx['lm_f'], ctx['lm_pf'])
         extra = [({'id': 'GEN_subcutaneous_fat_gluteofemoral', 'name': 'Subcutaneous fat of hips, buttocks and thighs (female distribution)',
@@ -2038,6 +2049,8 @@ def main():
         import hand_fit
         hand_fit.final_containment(M, shell, report)     # milestone 8: hand soft tissue stays inside
     stretch_report(M, male, report)
+    if __import__('os').environ.get('HA_DUMP'):                # developer aid: positions before packaging
+        Path(__import__('os').environ['HA_DUMP']).write_bytes(pickle.dumps({k: m['pos'] for k, m in M.items()}))
     write_package(M, F, G, extra, atlas, removed, report)
     (WORK / 'report.json').write_text(json.dumps(report, indent=1, default=float))
 

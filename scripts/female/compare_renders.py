@@ -53,6 +53,8 @@ def categories(p, c):
         out.append('thigh-closeup')
         if s == 'skeletal':
             out.append('thigh-skeleton')
+    if 0.62 < c[1] < 1.12 and abs(c[0]) < 0.25 and s in ('skeletal', 'muscular', 'connective', 'adipose') and n != 'skin':
+        out.append('hip-closeup')          # milestone 9: gluteal region
     if c[1] > 1.30 and s in ('skeletal', 'sensory') and n != 'skin':
         out.append('head-skeleton')
     in_breast = 1.0 < c[1] < 1.36 and abs(c[0]) < 0.24
@@ -68,7 +70,7 @@ def categories(p, c):
     return out
 
 
-JOB_VIEWS = {'perineum-closeup': ['front', 'side', 'back', 'oblique', 'below'], 'hand-left': ['palm', 'dorsum', 'front', 'back'], 'hand-right': ['palm_r', 'dorsum_r', 'front', 'back'], 'head-skeleton': ['front', 'side'], 'thigh-closeup': ['front', 'side', 'back'], 'thigh-skeleton': ['front', 'side', 'back'],
+JOB_VIEWS = {'perineum-closeup': ['front', 'side', 'back', 'oblique', 'below'], 'hand-left': ['palm', 'dorsum', 'front', 'back'], 'hand-right': ['palm_r', 'dorsum_r', 'front', 'back'], 'head-skeleton': ['front', 'side'], 'thigh-closeup': ['front', 'side', 'back'], 'hip-closeup': ['back', 'side', 'oblique'], 'thigh-skeleton': ['front', 'side', 'back'],
              'breast-fat-on': ['front', 'side', 'oblique'], 'breast-fat-off': ['front', 'side', 'oblique'], 'vulva-closeup': ['front', 'below', 'oblique'],
              'uterus-isolated': ['front', 'side', 'oblique']}
 JOB_ALPHA = {'vulva-closeup': {'integumentary': 0.4}, 'breast-fat-on': {'adipose': 0.35}, 'all-systems': {'adipose': 0.35},

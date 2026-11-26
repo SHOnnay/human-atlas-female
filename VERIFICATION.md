@@ -457,3 +457,48 @@ The numeric gates pass, but the visual reviews below do not. The gates check con
 | No-regression | no regression | no regression | no regression | **PASS** | Male compare renders pixel-identical; webapp male differs by ≤ 168 scattered px (noise). Reviewer opened 10 images and pixel-diffed the other pairs |
 
 Each reviewer listed the images it viewed; the lists are in the milestone report. Not fixed: all four items.
+
+## Milestone 9: hips and buttocks (branch `hybrid`, not merged by rule)
+
+Touched only: gluteus maximus, medius and minimus; IT tract; new gluteofemoral subcutaneous fat. TFL is warped as before: TotalSegmentator `total` has no TFL label. The atlas has no fascia lata mesh.
+
+### Gates (final build)
+| Gate | Target | Result |
+|---|---|---|
+| Stretch (> 2×) | ≤ 0.459 % (9,038) | 9,007 / 1,969,056 = **0.457 % — PASS** (m9 parts 1,194) |
+| Parts through skin | 0 touched | **PASS** — 19, the same non-hip parts as milestone 8 |
+| Floating | 0 | 0 — PASS |
+| Gluteofemoral fat outside skin (packaged) | 0 | 0 (closest 3.0 mm L / 3.2 mm R inside) — PASS |
+| Untouched parts moved (pre-packaging, m9 off vs on) | 0 | 0 of 2,039 — PASS |
+| npm run check, validate-atlas, validate-interactions, build, verify-browser | pass | **all PASS** |
+| Male package | unchanged | unchanged |
+
+### Gluteal fit to her CT (gate: ≤ 3 mm each way)
+| Muscle | model → CT | CT → model | h95 | Attachments (closest, mm) |
+|---|---|---|---|---|
+| R gluteus maximus | 0.77 | 2.26 | 6.0 | sacrum 0.3, coccyx 0.5, ilium 0.5, femur 0.5 |
+| L gluteus maximus | 0.69 | 2.21 | 6.1 | sacrum 0.5, coccyx 0.5, ilium 0.1, femur 0.5 |
+| R gluteus medius | 0.79 | 1.48 | 4.3 | ilium 0.1, femur 0.5 |
+| L gluteus medius | 0.91 | 1.47 | 4.5 | ilium 0.3, femur 0.5 |
+| R gluteus minimus | 0.87 | 1.33 | 3.3 | ilium 0.0, femur 0.5 |
+| L gluteus minimus | 0.98 | 1.41 | 3.6 | ilium 0.1, femur 0.5 |
+
+IT tract: max 1.23 mm off the muscle (gate 2 mm), 0 vertices over 2 mm, iliac crest to lateral tibial condyle.
+
+### Sections (`docs/screenshots/sections/glute_*.png`)
+| Level | Gluteal Dice L / R | Fat thickness median, model / CT (mm) L | R |
+|---|---|---|---|
+| S1 | 0.91 / 0.88 | 5 / 22 | 5 / 21 |
+| Pubic symphysis | 0.84 / 0.84 | 36 / 14 | 39 / 28 |
+| Mid-thigh | n/a (no gluteals) | 3 / 0 | 3 / 2 |
+
+The mid-thigh CT block (femur_to_toes) is not pelvis-registered, so its fat column is not a valid comparison. The CT was taken supine.
+
+### Reviewer (1 reviewer, 2 rounds, the maximum)
+| Question | Round 1 | Round 2 (final) |
+|---|---|---|
+| (a) Gluteals fill her buttocks, read as a woman's hips | FAIL | **FAIL** — side silhouette reads female; in back views the fat veils the gluteals; gluteus maximus upper edge still torn |
+| (b) No sheet, flare or spike | FAIL | **FAIL** — fat has a straight top edge, a flat outer bottom edge and front flank panels; fat arcs leave the CT body outline in the pubic and mid-thigh sections; crumpled patch at the lateral hip |
+| (c) Better or same than previous hybrid | FAIL (worse) | **FAIL** — side views same or slightly better; back, front and oblique views worse |
+
+The reviewer viewed 67 images in round 1 and 75 in round 2 (round 1 missed the all-systems-skin views by my list error). Not fixed: (a), (b), (c). The numeric gates pass. The reviewer's main fix: a curved fat border that follows the iliac crest, with thickness tapered to zero at the outer-lower and front edges; or hide the fat until then.
