@@ -1372,8 +1372,11 @@ def write_package(M, F, G, extra, atlas, removed, report):
                  'accuracy': 'scan-derived', 'note': f"Scan-derived: the real Visible Human Female bone ({m['scan_derived']}), "
                  'shown in place of the BodyParts3D shape (same ID, name and system).'}, m['pos'], None, m['idx'])
             continue
-        add({'id': p['id'], 'name': p['name'], 'conceptId': p['conceptId'], 'system': m.get('system', p['system']), 'source': 'bp3d',
-             'accuracy': 'warped', 'note': note}, m['pos'], None, m['idx'])
+        entry = {'id': p['id'], 'name': p['name'], 'conceptId': p['conceptId'], 'system': m.get('system', p['system']), 'source': 'bp3d',
+                 'accuracy': 'warped', 'note': note}
+        if m.get('preoptimized'):         # milestone 10: refitted parts are packaged as built (see optimize-anatomy.mjs)
+            entry['preoptimized'] = True
+        add(entry, m['pos'], None, m['idx'])
     xref = xrefs['uberon']
     fixes = {}
     for n, f in F.items():
@@ -2002,7 +2005,13 @@ def main():
         bind_sheets(M, male, report, re.compile(r'iliotibial', re.I))   # round 2: the IT tract rides on her muscles
         if M9:
             glute_fit.it_shell(M, report, male)                # milestone 9: IT tract on the OUTER muscle surface
-            breast_extra = breast_extra + glute_fit.gluteofemoral_fat(F, M, skin, shell, report)
+            # milestone 10: the separate gluteofemoral fat panel is replaced by one whole-body layer (below)
+        import m10                                             # milestone 10: abdominal wall at her CT depth
+        m10.local_delta(F, M, report)
+        abdominal_extra = m10.abdominal_wall(F, M, male, report)
+        for i, (meta, V, I) in enumerate(abdominal_extra):     # generated wall parts stay >= 3 mm inside her skin
+            if shell.outside(V, 0.003).any():
+                abdominal_extra[i] = (meta, shell.keep_inside(V, margin=0.003, radius=0.008, iterations=20)[0], I)
         articulated_hands(M, skin, report, male=male)    # milestone 8: jointed hand fit + bone skinning
     G = generate(F, M, skin, ctx['lm_pf'], report, args.blender)
     check_generated(G, F, M, shell, report)
@@ -2016,7 +2025,9 @@ def main():
     report['generated_inside'] = gin
     keep_inside_skin(shell, M, F, report)
     if args.body in ('vhf', 'hybrid'):
-        extra = list(breast_extra)        # breast fat (+ hybrid milestone 9: gluteofemoral fat)
+        extra = list(breast_extra)        # breast fat
+        if args.body == 'hybrid':
+            extra += abdominal_extra      # milestone 10: generated rectus, internal oblique, transversus, ligaments
     else:
         fv, fi = gluteofemoral_fat(skin, ctx['lm_f'], ctx['lm_pf'])
         extra = [({'id': 'GEN_subcutaneous_fat_gluteofemoral', 'name': 'Subcutaneous fat of hips, buttocks and thighs (female distribution)',
@@ -2049,6 +2060,12 @@ def main():
         import hand_fit
         hand_fit.final_containment(M, shell, report)     # milestone 8: hand soft tissue stays inside
     stretch_report(M, male, report)
+    if args.body == 'hybrid':
+        # milestone 10: one closed subcutaneous fat layer on her packaged skin, built last (all deep parts final)
+        import m10
+        fat_part, fatinfo = m10.subcutaneous_fat(F, M, G, extra, report)
+        m10.fat_thickness_sites(M, F, fatinfo, report)
+        extra = extra + [fat_part]
     if __import__('os').environ.get('HA_DUMP'):                # developer aid: positions before packaging
         Path(__import__('os').environ['HA_DUMP']).write_bytes(pickle.dumps({k: m['pos'] for k, m in M.items()}))
     write_package(M, F, G, extra, atlas, removed, report)

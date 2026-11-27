@@ -176,6 +176,67 @@ def _diffuse(D, nb, fixed, rounds=6):
     return D
 
 
+M10 = True
+
+
+def bare_ilium(side, bones, M, medius_pos=None, medius_idx=None):
+    """Outer (gluteal) surface of her ilium between the crest (-6 mm) and 12 cm below it with no gluteal muscle
+    (maximus / medius / minimus / TFL) within 4 mm or along its outward normal within 30 mm."""
+    import trimesh
+    il = bones[('ilium', side)]
+    sgn = 1 if side == 'Left' else -1
+    V = np.asarray(il.vertices); N = np.asarray(il.vertex_normals)
+    crest = V[:, 1].max()
+    # round 2: the outer AND anterolateral faces of the wing (side and oblique views)
+    outer = ((N[:, 0] * sgn > 0.3) | (N[:, 0] * sgn + 0.6 * N[:, 2] > 0.45)) & (V[:, 1] < crest - 0.006) & (V[:, 1] > crest - 0.12)
+    ms = []
+    for m in M.values():
+        if re.fullmatch(f'{side} (gluteus (maximus|medius|minimus)|tensor fasciae latae)', m['name']):
+            if medius_pos is not None and m['name'] == f'{side} gluteus medius':
+                ms.append(ml.to_trimesh(medius_pos, medius_idx))
+            else:
+                ms.append(ml.to_trimesh(m['pos'], m['idx']))
+    mus = trimesh.util.concatenate(ms)
+    O = V[outer] + N[outer] * 0.0005
+    hit = np.isfinite(_ray_first(mus, O, N[outer], 0.03))
+    near = trimesh.proximity.ProximityQuery(mus).on_surface(O)[1] < 0.004
+    bare = ~(hit | near)
+    return O[bare], N[outer][bare], int(outer.sum())
+
+
+def cover_ilium(X, idx, src, side, bones, M, pin, tgt, nb):
+    """Gluteus medius covers the outer ilium between the crest and gluteus maximus: the bare ilium surface
+    (offset 5 mm outward, mid-muscle) is added to her CT medius as a fit target; symmetric fit (no similarity
+    step), the attachments kept, then the edge clamp."""
+    import trimesh
+    import vhf_register as vr
+    P, N, n_outer = bare_ilium(side, bones, M, X, idx)
+    before = len(P)
+    if before < 10:
+        return X, {'outer_ilium_points': n_outer, 'bare_before': before, 'bare_after': before}
+    cloud = trimesh.Trimesh(np.vstack([P + N * 0.003, P + N * 0.007]), process=False)
+    pts = np.vstack([np.asarray(tgt.vertices), np.asarray(cloud.vertices)])
+    pc = trimesh.points.PointCloud(pts)
+    # point targets: the CT medius surface plus the bare ilium band; symmetric pull via nearest points
+    tree = cKDTree(pts)
+    Y = X.copy()
+    for it in range(120):
+        d, j = tree.query(Y)
+        D = pts[j] - Y                                   # model -> target
+        tr = cKDTree(Y)
+        d2, k = tr.query(np.asarray(cloud.vertices))
+        D2 = np.zeros_like(Y); c2 = np.zeros(len(Y))
+        np.add.at(D2, k, np.asarray(cloud.vertices) - Y[k]); np.add.at(c2, k, 1)
+        D = 0.15 * D + 0.85 * np.where(c2[:, None] > 0, D2 / np.maximum(c2, 1)[:, None], D)   # cover the bare ilium first
+        D = _diffuse(D, nb, pin, rounds=8)
+        D[pin] = 0
+        Y = Y + 0.6 * D
+    Y = edge_clamp(Y, src, idx, None, pin, iters=300)
+    after = len(bare_ilium(side, bones, M, Y, idx)[0])
+    del pc
+    return Y, {'outer_ilium_points': n_outer, 'bare_before': before, 'bare_after': after}
+
+
 def fit_gluteals(M, F, shell, report, male):
     import trimesh
     import vhf_register as vr
@@ -228,6 +289,20 @@ def fit_gluteals(M, F, shell, report, male):
         X = np.where(pin[:, None], X, Xs)
         X = edge_clamp(X, src, idx, None, pin, iters=200)
         rounds = 'edge clamp + taubin 10'
+        if M10 and mus == 'maximus':
+            # milestone 10: the upper border (top 4 cm) follows the ragged CT mask edge: smooth it harder
+            top = X[:, 1] > X[:, 1].max() - 0.04
+            tmx = trimesh.Trimesh(X, idx.reshape(-1, 3), process=False)
+            Xs = np.asarray(trimesh.smoothing.filter_taubin(tmx.copy(), iterations=40).vertices)
+            X = np.where((top & ~pin)[:, None], Xs, X)
+            X = edge_clamp(X, src, idx, None, pin, iters=200)
+            rounds += ' + upper border taubin 40'
+        if M10 and mus == 'medius':
+            X, cov = cover_ilium(X, idx, src, side, bones, M, pin, tgt, nb)
+            out.setdefault('_ilium_cover', {})[m['name']] = cov
+            rounds += ' + ilium cover'
+        if M10:
+            m['preoptimized'] = True             # packaged as built (no second simplification of the male-simplified mesh)
         if shell.outside(X, 0.003).any():
             X = shell.keep_inside(X, margin=0.003, radius=0.008, iterations=20)[0]
         m2c, c2m, mean_mm, h95 = two_way(X, idx, tgt)
@@ -242,7 +317,11 @@ def fit_gluteals(M, F, shell, report, male):
                           'ct_components': ncomp, 'largest_component_face_fraction': frac, 'attachments': att,
                           'volume_cm3': float(abs(trimesh.Trimesh(X, idx.reshape(-1, 3), process=False).volume) * 1e6),
                           'ct_volume_cm3': float(abs(tgt.volume) * 1e6)}
+    cov = out.pop('_ilium_cover', {})
     report['m9_gluteals'] = out
+    if cov:
+        report['m10_ilium_cover'] = cov
+        print('m10 ilium cover', cov, flush=True)
     for k, v in out.items():
         print('m9 gluteal', k, 'model->CT %.2f CT->model %.2f mm h95 %.1f mm stretch %d' % (v['model_to_ct_mm'], v['ct_to_model_mm'], v['hausdorff95_mm'], v['stretch_tris_over_2x']),
               {b: round(a['closest_after_mm'], 1) for b, a in v['attachments'].items()}, flush=True)
@@ -294,6 +373,13 @@ def it_shell(M, report, male, gap=0.0012, cap=0.012):
         D = _diffuse(D, tm.vertex_neighbors, ~big, rounds=4)
         X = X0 + D
         X = edge_clamp(X, src, idx, onto, np.zeros(len(X), bool), w=1.0, every=3, iters=1500)
+        if M10:
+            # milestone 10: the upper third (over the hip) was crumpled: smooth it, then back on the muscle
+            up = X[:, 1] > X[:, 1].max() - 0.15
+            Xs = np.asarray(trimesh.smoothing.filter_taubin(trimesh.Trimesh(X, idx.reshape(-1, 3), process=False), iterations=20).vertices)
+            X = np.where(up[:, None], Xs, X)
+            X = edge_clamp(X, src, idx, onto, np.zeros(len(X), bool), w=0.5, every=3, iters=300)
+            m['preoptimized'] = True
         d = pq.on_surface(X)[1]
         far = d > 0.0019                         # the 2 mm gate: last vertices placed exactly
         if far.any():

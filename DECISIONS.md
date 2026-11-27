@@ -272,3 +272,36 @@ The male files are not modified.
 - **CT supine.** The donor lay on her back. The CT gives the muscle volume and attachments; the fat fills her standing (HRA) skin shape, so model and CT fat thickness differ.
 - **Section Dice by winding number.** The packaged gluteals are simplified and no longer closed, so plane sections leak. The overlay fills the model cross-section by the generalized winding number (> 0.5). That tolerates small holes and gives the same Dice on packaged and pre-packaging meshes.
 - **Fat outside-skin check.** `gate_checks.py` exempts subcutaneous fat, so `scripts/female/fat_skin_check.py` checks the packaged gluteofemoral fat against the skin.
+
+## Milestone 10 (hybrid): subcutaneous fat layer and abdominal wall
+
+### Step 0: hip close-up capture filter
+- **No muscles were missing.** The hip close-up kept parts whose centroid was above a fixed 0.62 m. She is shorter (1.666 m against 1.719 m) and her femur ends lower (0.413 m against 0.446 m), so her hamstrings, quadriceps and adductor magnus fell below the cut.
+- **The window is now body-relative.** It runs from each body's own knee (femur bottom) + 5 cm to its iliac crest + 6 cm. The new abdomen close-up likewise runs from the iliac crest − 10 cm to the xiphoid + 4 cm.
+
+### Subcutaneous fat layer
+- **One closed layer.** It is two nested inward offsets of her skin: 1 mm, and 1 mm + t. That gives zero boundary edges by construction.
+- **The skin it is built on.** It is the PACKAGED skin, simplified with the packager's own call (`simplify_like_package.mjs`). The fat is then copied into the package unsimplified (`preoptimized`). Otherwise the packager's simplification (up to about 3 mm on the skin) could put a 1 mm inset outside the skin.
+- **Thickness t.** t is the distance to the deep envelope: every deep part, with superficial veins and cutaneous nerves excluded. It is clamped at the medial axis (fingers, ears, nose, between the thighs) and smoothed, but never past that bound.
+- **Folds and breast fat.** Folded regions are thinned (591 folded inner vertices before the fix, 7 after). The breast fat is part of the deep envelope, so the layer lies over it with no overlap.
+- **Natural openings: deviation.** The layer is thinned to 0.3 mm within about 1.2–3.5 cm of the eyes, mouth, nostrils, vulva and anus, rather than cut open. A cut would create the edges the gate forbids.
+- **System `subcutaneous`, not `adipose` (deviation).** The app groups and toggles by system. Putting the layer in `adipose` would hide or show the breast fat with it. It therefore has its own system, panel entry and toggle, "Subcutaneous fat", hidden by default and drawn at 35 % opacity. The male atlas has none, so his panel is unchanged.
+- **The milestone-9 gluteofemoral fat panel is removed.**
+
+### Abdominal wall
+- **What exists.** BodyParts3D has no rectus abdominis, internal oblique or transversus abdominis meshes (FMA9628 and FMA15570 are absent; FMA13336 is the right *external* oblique). HRA has none either. The BodyParts3D "anterior abdominal wall" group holds only the two external obliques. The male "six-pack" is relief sculpted into the external oblique mesh, which covers the whole front including its aponeurosis.
+- **Generated, labelled approximate (user decision).** Rectus abdominis (two straps), internal oblique, transversus abdominis, tendinous intersections (3 per side, above the umbilicus) and the inguinal ligaments are generated, with accuracy `approximate` ("Generated · approximate"). The male model is unchanged and still lacks them.
+- **Her CT wall.** `vhf_abdominal_band.py` (TotalSegmentator venv, raw HU only) reads, per 3 mm × 1.5° ray, the subcutaneous fat, the musculo-aponeurotic wall and its inner end. Fat planes up to 4 mm between the layers are crossed. Rays that hit her arm (which lies against the trunk in the CT) are rejected against her own torso skin.
+- **Local registration.** One rigid refinement on the pelvis and ribs 7–12: rotation 0.96°, median 4.30 → 3.02 mm.
+- **Layer split.** Thickness ratios EO : IO : TrA = 4.8 : 5.95 : 3.4 mm, the women's means in Tahan et al. 2016, *J Physiol Anthropol* 35:17 (81 women, ultrasound, anterior axillary line). At the flank the BodyParts3D external oblique is set to its share (34 %) of her CT wall, because the male sheet is thicker than her whole wall there.
+- **Over the rectus.** The external oblique is its aponeurosis (1 mm) lying on the rectus.
+- **Fibre relief.** Shallow relief (0.15 mm) shows the fibre direction on the generated muscles: rectus vertical, internal oblique up and medially, transversus horizontal.
+- **Posture and organs (round 2).** Her CT was supine, so the belly wall sags back, while her organs and skin are standing. In round 1 the wall ended up behind the liver, stomach and colon. The wall now keeps her CT fat depth and wall thickness measured down from her standing skin. Where her real viscera (liver, stomach, intestines, bladder, uterus) still reach further out, it is pushed out to clear them by 3 mm (17 % of the wall grid, up to 68 mm). This trades CT depth for anatomical order: organs behind the wall.
+- **Fit gate.** Mean radial distance to her raw CT wall, as a 3 × 3 median of valid readings, after the same posture correction. It is not measured against the smoothed band the parts are built from.
+- **Rectus geometry.** Strap width (3 → 7 → 8 cm at pubis → umbilicus → top) and the intersection heights follow standard anatomy, not her CT.
+
+### Gluteal polish
+- **Double simplification.** Her build starts from the male package, which is already simplified, and the packager simplified it again: gluteus maximus went from 1,240 to 767 faces. Refitted parts (gluteals, IT tract, external oblique, linea alba) are now packaged as built (`preoptimized`).
+- **Gluteus maximus.** The upper 4 cm is Taubin-smoothed (40 iterations), with the attachments pinned.
+- **Gluteus medius.** It is fitted to her CT medius plus the bare outer and anterolateral ilium, offset 3–7 mm outward. Bare points went from 1,121 to 831 (R) and 1,309 to 1,063 (L); not fully covered.
+- **IT tract.** The upper 15 cm is smoothed and laid back on the muscle.

@@ -502,3 +502,63 @@ The mid-thigh CT block (femur_to_toes) is not pelvis-registered, so its fat colu
 | (c) Better or same than previous hybrid | FAIL (worse) | **FAIL** — side views same or slightly better; back, front and oblique views worse |
 
 The reviewer viewed 67 images in round 1 and 75 in round 2 (round 1 missed the all-systems-skin views by my list error). Not fixed: (a), (b), (c). The numeric gates pass. The reviewer's main fix: a curved fat border that follows the iliac crest, with thickness tapered to zero at the outer-lower and front edges; or hide the fat until then.
+
+## Milestone 10: subcutaneous fat layer, abdominal wall, gluteal polish (branch `hybrid`, not merged)
+
+### Step 0
+The thigh muscles were not missing. The hip close-up capture used a fixed centroid cut (y > 0.62 m), and her lower hips put her hamstrings, quadriceps and adductor magnus below it. The capture now uses each body's own knee and iliac crest, and all thigh muscles show in both bodies (reviewer item 7: PASS).
+
+### Gates (final build)
+| Gate | Target | Result |
+|---|---|---|
+| Stretch (> 2×) | ≤ 0.457 % | 8,701 / 1,969,056 = **0.442 % — PASS** |
+| Touched parts through skin | 0 | **0 — PASS**; 19 parts through the skin, the same untouched set as milestones 8 and 9 (trapezius, nasal cartilages, platysma, sternocleidomastoid, occipital bone, ear, foot/leg parts) |
+| Floating | 0 | 0 — PASS |
+| Subcutaneous fat, packaged | 0 outside skin, 0 open edges | 0 outside (min inset 0.33 mm), 0 boundary edges — PASS; 7 inner vertices still folded (591 before the fix) |
+| npm run check, validate-atlas, validate-interactions, build, verify-browser | pass | **all PASS** |
+| Male package | unchanged | unchanged |
+
+### Abdominal wall fit (mean radial distance to her raw CT wall, posture-corrected; gate ≤ 3 mm per muscle)
+| Part | Left | Right | Gate |
+|---|---|---|---|
+| External oblique (BodyParts3D, refitted) | 5.4 mm | 5.8 mm | **FAIL** |
+| Rectus abdominis (generated) | 3.9 mm | 3.1 mm | **FAIL** |
+| Internal oblique (generated) | 2.4 mm | 1.8 mm | PASS |
+| Transversus abdominis (generated) | 2.2 mm | 2.1 mm | PASS |
+| Linea alba (connective, not gated) | 8.9 mm | | — |
+
+- **Before the organ clearance (round 1),** all four muscles were within 3 mm (EO 1.9 / 2.1, RA 0.9 / 1.1, IO 1.6 / 1.2, TrA 1.8 / 1.7), but her viscera lay in front of the wall.
+- **After it (round 2),** the wall is pushed out where her organs reach (17 % of the grid, up to 68 mm, mean 11 mm). Organs are now behind the wall, but the external oblique and rectus no longer meet the CT-depth gate.
+- **Local registration** (pelvis + ribs 7–12): rotation 0.96°, median 4.30 → 3.02 mm.
+
+### Fat thickness (median, mm)
+| Site | Model | CT | Note |
+|---|---|---|---|
+| Abdomen, L3 anterior | 17.8 | 35.5 | CT supine; the model wall was pushed out to clear her organs |
+| Upper thigh L / R | 22.2 / 24.2 | 37.8 / 29.8 | |
+| Lateral hip at trochanter L / R | 22.2 / 25.9 | 7.5 / 13.0 | supine-distorted (she lay on it) |
+| Buttock, S1 posterior | 27.1 | 27.3 | supine-distorted |
+| Upper arm L / R | 6.3 / 13.5 | 8.5 / 18.0 | |
+| Mid-thigh L / R (CT only) | — | 14.0 / 13.5 | the model's mid-thigh section is misregistered against the CT leg block |
+
+### Sections (`docs/screenshots/sections/m10_*.png`)
+Gluteal Dice L / R: S1 0.86 / 0.86, pubic level 0.84 / 0.84. The mid-thigh overlay is misregistered (leg CT block) and verifies nothing. At T10 the model breasts and arms extend outside the CT field.
+
+### Gluteals
+- **Ilium cover.** Bare outer and anterolateral ilium points went from 1,121 to 831 (R) and 1,309 to 1,063 (L).
+- **Gluteus medius** vs CT: 2.9 / 2.8 mm model → CT.
+- **Gluteus maximus** vs CT: 0.8 / 0.7 model → CT and 2.4 / 2.3 CT → model, so its 3 mm gate holds.
+
+### Reviewer (1 reviewer, 2 rounds, the maximum; all 57 images listed both rounds)
+| # | Item | Round 1 | Round 2 (final) |
+|---|---|---|---|
+| 1 | Fat layer continuous, no edges, hidden by default | PASS | **PASS** (inner contour jagged in sections) |
+| 2 | Rectus: two straps, intersections, linea alba | FAIL | **FAIL**, improved: straps and continuous linea alba visible; intersections faint, surface noisy; a stray horizontal line across the chest |
+| 3 | External oblique fibre direction, inguinal ligament | FAIL | **FAIL**, slightly improved: no inferomedial fibre direction, ragged lower border, ligament reads as thin strands, side flaps at the top |
+| 4 | Abdominal wall at normal depth | FAIL (organs in front) | **PASS**: organs behind the wall, fat between wall and skin; at T10 the wall sits too far forward |
+| 5 | Gluteus maximus fibres, upper edge | FAIL | **FAIL**: upper edge intact, but no visible fibre direction, torn lateral border, flat side profile |
+| 6 | Gluteus medius covers the outer ilium | FAIL | **PASS** (a bare trochanter / femoral neck lump remains) |
+| 7 | Thigh muscles in both hip close-ups | PASS | **PASS** |
+| 8 | Vs previous hybrid | worse | **mostly better**: back, side and hip views better; abdomen close-ups about the same (more structure, noisier surface) |
+
+Not fixed: items 2, 3 and 5, and the external oblique and rectus CT-depth gate after the organ clearance.

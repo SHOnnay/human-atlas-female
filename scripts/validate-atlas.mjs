@@ -34,7 +34,7 @@ for(const filename of targets){
   // Metadata: every part names its source and accuracy; generated parts are schematic.
   // Every structure is labelled scan-derived / warped / generated, consistently with its source.
   const expect={hra:'scan-derived',bp3d:'warped',generated:'generated',mpfb:'generated'};
-  for(const p of atlas.parts){assert.ok(atlas.sources[p.source],`${p.id}: unknown source ${p.source}`);assert.equal(p.accuracy,expect[p.source],`${p.id}: accuracy`);if(p.accuracy!=='scan-derived')assert.ok(p.note,`${p.id}: needs a provenance note`);}
+  for(const p of atlas.parts){assert.ok(atlas.sources[p.source],`${p.id}: unknown source ${p.source}`);assert.ok(p.accuracy===expect[p.source]||(p.source==='generated'&&p.accuracy==='approximate'),`${p.id}: accuracy`);if(p.accuracy!=='scan-derived')assert.ok(p.note,`${p.id}: needs a provenance note`);}
   const skin=atlas.parts.filter(p=>p.name==='Skin');assert.equal(skin.length,1);assert.ok(['hra','mpfb'].includes(skin[0].source),'the body surface must be the VHF scan (hra) or the MPFB body');
   // Breast adipose is its own system; the clitoris and vestibular bulbs are erectile tissue.
   assert.ok(atlas.parts.filter(p=>/breast adipose/i.test(p.name)).every(p=>p.system==='adipose')&&atlas.parts.some(p=>p.system==='adipose'),'breast adipose system');

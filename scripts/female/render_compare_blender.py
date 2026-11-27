@@ -15,7 +15,7 @@ COLORS = {'skeletal': (0.89, 0.85, 0.73), 'muscular': (0.66, 0.36, 0.31), 'repro
           'connective': (0.93, 0.83, 0.62), 'arterial': (0.8, 0.25, 0.22), 'venous': (0.32, 0.47, 0.67),
           'nervous': (0.85, 0.7, 0.4), 'cardiac': (0.73, 0.4, 0.38), 'respiratory': (0.73, 0.54, 0.57),
           'lymphatic': (0.53, 0.62, 0.49), 'endocrine': (0.77, 0.63, 0.6), 'sensory': (0.69, 0.78, 0.81),
-          'adipose': (1.0, 0.94, 0.62), 'erectile': (0.43, 0.18, 0.42),
+          'adipose': (1.0, 0.94, 0.62), 'subcutaneous': (0.94, 0.85, 0.56), 'erectile': (0.43, 0.18, 0.42),
           'mammary': (0.96, 0.85, 0.84), 'lactiferous': (0.72, 0.16, 0.36)}
 ALPHA = {}
 # Atlas (x, y-up, z-anterior) -> Blender (x, -z, y): Blender is Z-up, anterior = -Y.
@@ -62,7 +62,7 @@ for job in jobs:
         centre, size = frame(*fr) if fr else frame(job['lo'], job['hi'])
         bpy.ops.wm.read_factory_settings(use_empty=True)
         scene = bpy.context.scene
-        ALPHA.clear(); ALPHA.update({'adipose': 0.35}); ALPHA.update(job.get('alpha', {}))   # female fat 35 % in every view (male has no fat parts)
+        ALPHA.clear(); ALPHA.update({'adipose': 0.35, 'subcutaneous': 0.35}); ALPHA.update(job.get('alpha', {}))   # female fat 35 % in every view (male has no fat parts)
         d = root / body / job['cat']
         for f in (sorted(d.glob('*.obj')) if d.exists() else []):
             load_obj(f)

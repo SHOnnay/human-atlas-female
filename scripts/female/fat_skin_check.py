@@ -1,7 +1,8 @@
-"""Milestone 9: gate_checks exempts subcutaneous fat, so the gluteofemoral fat is checked here on the
-PACKAGED female model: number of fat vertices outside her skin (winding number, skin mesh).
+"""Fat gates on the PACKAGED female model (gate_checks exempts subcutaneous fat):
+  - every fat part (system adipose or subcutaneous): vertices outside her skin (signed distance)
+  - the subcutaneous fat layer (milestone 10): boundary (open) edges, i.e. cut edges, must be 0
 
-    python scripts/female/fat_skin_check.py      -> prints per side, exit 1 if any vertex is outside
+    python scripts/female/fat_skin_check.py      -> prints per part, exit 1 on any failure
 """
 import sys
 from pathlib import Path
@@ -18,16 +19,21 @@ def main():
     atlas, M = ml.load_package(ROOT / 'public/models/female/atlas.json')
     by = {p['name']: M[p['id']] for p in atlas['parts']}
     skin = ml.to_trimesh(by['Skin']['pos'], by['Skin']['idx'])
+    pq = trimesh.proximity.ProximityQuery(skin)
     bad = 0
-    for side in ('Left', 'Right'):
-        f = by.get(f'{side} gluteofemoral subcutaneous fat')
-        if f is None:
-            print(side, 'missing'); bad += 1
+    for p in atlas['parts']:
+        if p['system'] not in ('adipose', 'subcutaneous'):
             continue
-        P = f['pos']
-        w = trimesh.proximity.ProximityQuery(skin).signed_distance(P)   # > 0 inside the skin
+        P = M[p['id']]['pos']
+        w = pq.signed_distance(P)            # > 0 inside the skin
         n = int((w < 0).sum())
-        print(f'{side} gluteofemoral fat: {len(P)} vertices, {n} outside the skin, min inset {w.min() * 1000:.2f} mm')
+        line = f"{p['name']}: {len(P)} vertices, {n} outside the skin, min inset {w.min() * 1000:.2f} mm"
+        if p['system'] == 'subcutaneous':
+            m = trimesh.Trimesh(P, M[p['id']]['idx'].reshape(-1, 3), process=False)
+            be = len(trimesh.grouping.group_rows(m.edges_sorted, require_count=1))
+            line += f', boundary edges {be}'
+            bad += be
+        print(line)
         bad += n
     sys.exit(1 if bad else 0)
 

@@ -1,4 +1,4 @@
-export type SystemId = 'skeletal'|'muscular'|'arterial'|'venous'|'nervous'|'digestive'|'respiratory'|'urinary'|'reproductive'|'lymphatic'|'endocrine'|'integumentary'|'connective'|'sensory'|'cardiac'|'adipose'|'erectile'|'mammary'|'lactiferous';
+export type SystemId = 'skeletal'|'muscular'|'arterial'|'venous'|'nervous'|'digestive'|'respiratory'|'urinary'|'reproductive'|'lymphatic'|'endocrine'|'integumentary'|'connective'|'sensory'|'cardiac'|'adipose'|'erectile'|'mammary'|'lactiferous'|'subcutaneous';
 export const SYSTEMS: {id:SystemId;name:string;color:string;description:string}[] = [
  {id:'skeletal',name:'Skeleton',color:'#e2d9ba',description:'Bones form the supporting framework of the body, protect organs, and provide attachment points for muscles. Their internal tissue also stores minerals and produces blood cells.'},
  {id:'muscular',name:'Muscles',color:'#a85b50',description:'Skeletal muscles generate movement by pulling on their attachments. Together with tendons, they move joints, stabilize posture, and produce heat.'},
@@ -18,11 +18,12 @@ export const SYSTEMS: {id:SystemId;name:string;color:string;description:string}[
  {id:'adipose',name:'Adipose tissue',color:'#eedc9a',description:'Fat (adipose tissue) stores energy, insulates, and shapes body contour. In the breast it surrounds and supports the glandular lobes and ducts.'},
  {id:'mammary',name:'Mammary gland',color:'#f2dcd8',description:'The glandular lobes of the breast, arranged radially around the nipple. They produce milk during lactation.'},
  {id:'lactiferous',name:'Lactiferous ducts',color:'#b8295c',description:'Ducts that drain each lobe and widen into lactiferous sinuses just behind the nipple.'},
+ {id:'subcutaneous',name:'Subcutaneous fat',color:'#efd98f',description:'The continuous layer of fat (adipose tissue) under the skin, between the skin and the muscles. Its thickness varies over the body: thicker over the abdomen, hips, buttocks and thighs, thin over the hands, face and joints. Hidden by default.'},
  {id:'erectile',name:'Erectile tissue',color:'#6e2f6a',description:'Erectile tissue (the clitoris and the vestibular bulbs) consists of vascular spaces that fill with blood during arousal.'},
 ];
 /** How faithfully a part's geometry reflects its source (female package; male parts omit it). */
-export type Accuracy = 'scan-derived'|'warped'|'generated';
-export const ACCURACY_LABEL:Record<Accuracy,string> = {'scan-derived':'Scan-derived','warped':'Warped approximation','generated':'Generated · schematic'};
+export type Accuracy = 'scan-derived'|'warped'|'generated'|'approximate';
+export const ACCURACY_LABEL:Record<Accuracy,string> = {'scan-derived':'Scan-derived','warped':'Warped approximation','generated':'Generated · schematic','approximate':'Generated · approximate'};
 export interface Part {id:string;name:string;conceptId:string;system:SystemId;chunk:number;positions:number;normals:number;indices:number;vertexCount:number;indexCount:number;bounds:[number[],number[]];source?:string;accuracy?:Accuracy;note?:string;uberon?:string}
 export interface Concept {id:string;name:string;elements:string[]}
 export interface AtlasSource {name:string;author:string;license:string;url:string}

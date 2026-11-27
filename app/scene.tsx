@@ -50,7 +50,7 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
   // touch the male body, whose rendering stays exactly as on main.
   const fem=atlas.sex==='female';
   const materialFor=(system:string)=>{
-   const m=new T.MeshStandardMaterial({color:SYSTEMS.find(s=>s.id===system)?.color??'#aebbb8',metalness:.08,roughness:.53,side:T.DoubleSide,transparent:system==='integumentary'||(fem&&(system==='adipose'||system==='reproductive'||system==='urinary')),opacity:system==='integumentary'?.1:1,depthWrite:system!=='integumentary'});
+   const m=new T.MeshStandardMaterial({color:SYSTEMS.find(s=>s.id===system)?.color??'#aebbb8',metalness:.08,roughness:.53,side:T.DoubleSide,transparent:system==='integumentary'||(fem&&(system==='adipose'||system==='subcutaneous'||system==='reproductive'||system==='urinary')),opacity:system==='integumentary'?.1:1,depthWrite:system!=='integumentary'});
    m.onBeforeCompile=shader=>{
     shader.uniforms.partState={value:partTexture};shader.uniforms.selectionState={value:selectionTexture};shader.uniforms.stateWidth={value:width};
     shader.vertexShader='attribute float partIndex; uniform sampler2D partState; uniform sampler2D selectionState; uniform float stateWidth; varying float partVisible; varying float partSelected;\n'+shader.vertexShader;
@@ -76,7 +76,7 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
     g.setAttribute('partIndex',new T.BufferAttribute(new Float32Array(p.vertexCount).fill(i),1));
     const list=groups.get(p.system)??[];list.push(g);groups.set(p.system,list);
    });
-   groups.forEach((gs,system)=>{const geometry=mergeGeometries(gs,false);if(!geometry)throw new Error('Could not assemble anatomy geometry.');geometries.push(geometry);const mesh=new T.Mesh(geometry,mats.get(system as never));mesh.frustumCulled=false;if(fem)mesh.renderOrder=system==='integumentary'?10:system==='adipose'?5:0;scene.add(mesh);});
+   groups.forEach((gs,system)=>{const geometry=mergeGeometries(gs,false);if(!geometry)throw new Error('Could not assemble anatomy geometry.');geometries.push(geometry);const mesh=new T.Mesh(geometry,mats.get(system as never));mesh.frustumCulled=false;if(fem)mesh.renderOrder=system==='integumentary'?10:system==='adipose'?5:system==='subcutaneous'?6:0;scene.add(mesh);});
    lastState=null;loaded++;onProgress(Math.round(loaded/atlas.chunks.length*100));dirty=true;
   };
   (async()=>{try{let cursor=0;await Promise.all(Array.from({length:3},async()=>{while(cursor<atlas.chunks.length){const i=cursor++;await loadChunk(i);}}));if(!disposed){ready=true;dirty=true;}}catch(e){if(!disposed)onError(e instanceof Error?e.message:'Could not load the anatomy.');}})();
@@ -112,6 +112,7 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
     const skinMat=mats.get('integumentary');if(skinMat){skinMat.opacity=s.skinOpacity??.2;skinMat.depthWrite=false;}
     // Breast fat turns semi-transparent while a structure inside it (gland, duct, ligament) is selected.
     const fat=mats.get('adipose');if(fat){const see=s.selected.length>0&&!atlas.parts.some(p=>selection.has(p.id)&&p.system==='adipose');fat.opacity=see?.2:.35;fat.depthWrite=false;}
+    const sub=mats.get('subcutaneous');if(sub){const see=s.selected.length>0&&!atlas.parts.some(p=>selection.has(p.id)&&p.system==='subcutaneous');sub.opacity=see?.2:.35;sub.depthWrite=false;}
     const pelvicIsolate=s.isolate&&atlas.parts.some(p=>selection.has(p.id)&&(p.system==='reproductive'||p.system==='urinary'));
     const visibleParts=atlas.parts.filter(p=>s.isolate?selection.has(p.id):visible.has(p.system)||selection.has(p.id));
     const nextLayoutKey=visibleParts.map(p=>p.id).join(',')+':'+camera.aspect.toFixed(3);
@@ -150,7 +151,7 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
   if(debug)stats.__atlasRenderer={info:renderer.info,parts:atlas.parts.length,ready:()=>ready,
    camera:(target:number[],position:number[],orthoHeight?:number)=>{hold=true;controls.autoRotate=false;camera.clearViewOffset();controls.target.set(target[0],target[1],target[2]);camera.position.set(position[0],position[1],position[2]);if(orthoHeight)camera.fov=T.MathUtils.radToDeg(2*Math.atan(orthoHeight/2/camera.position.distanceTo(controls.target)));camera.updateProjectionMatrix();controls.update();dirty=true;},
    filter:(names:string[]|null,systems:string[]|null)=>{hold=true;const n=names?new Set(names):null,sy=systems?new Set(systems):null;atlas.parts.forEach((p,i)=>{data[i*4+3]=(n?.has(p.name)||sy?.has(p.system))?1:0;});partTexture.needsUpdate=true;ground.visible=platform.visible=ring.visible=innerRing.visible=false;dirty=true;},
-   opacity:(system:string,value:number)=>{const m=mats.get(system as never);if(m){m.transparent=value<1||system==='integumentary'||system==='adipose';m.opacity=value;m.depthWrite=value>=1;m.needsUpdate=true;dirty=true;}},
+   opacity:(system:string,value:number)=>{const m=mats.get(system as never);if(m){m.transparent=value<1||system==='integumentary'||system==='adipose'||system==='subcutaneous';m.opacity=value;m.depthWrite=value>=1;m.needsUpdate=true;dirty=true;}},
    names:()=>atlas.parts.map(p=>[p.name,p.system,p.bounds])};
   return()=>{disposed=true;abort.abort();cancelAnimationFrame(frame);observer.disconnect();controls.dispose();renderer.domElement.removeEventListener('pointerdown',down);renderer.domElement.removeEventListener('pointermove',move);renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('pointercancel',cancel);geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());scene.traverse(o=>{if(o instanceof T.Mesh&&!geometries.includes(o.geometry)){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}});scene.clear();pickers.length=0;env.dispose();partTexture.dispose();selectionTexture.dispose();markerGeometry.dispose();markerMaterial.dispose();hover.remove();
    if(debug&&stats.__atlasRenderer?.info===renderer.info)delete stats.__atlasRenderer;

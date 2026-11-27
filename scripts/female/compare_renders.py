@@ -31,7 +31,9 @@ def categories(p, c):
     s, n = p['system'], p['name'].lower()
     out = []
     if s in VISIBLE:
-        out.append('all-systems')
+        out.append('all-systems')                 # milestone 10: the subcutaneous fat layer is hidden here (app default)
+    if s in VISIBLE or s == 'subcutaneous':
+        out.append('all-systems-fat')             # ... and shown here (its toggle on, 35 %)
     if s in VISIBLE or n == 'skin':
         out.append('all-systems-skin')
     if n == 'skin':
@@ -53,8 +55,16 @@ def categories(p, c):
         out.append('thigh-closeup')
         if s == 'skeletal':
             out.append('thigh-skeleton')
-    if 0.62 < c[1] < 1.12 and abs(c[0]) < 0.25 and s in ('skeletal', 'muscular', 'connective', 'adipose') and n != 'skin':
-        out.append('hip-closeup')          # milestone 9: gluteal region
+    # milestone 9: gluteal region. Milestone 10: the window is each body's own (knee -> iliac crest), so the
+    # same thigh muscles show in both bodies (the fixed 0.62 m cut dropped her hamstrings and quadriceps)
+    lo, hi = REF.get('knee', 0.62) + 0.05, REF.get('crest', 1.06) + 0.06
+    if lo < c[1] < hi and abs(c[0]) < 0.25 and s in ('skeletal', 'muscular', 'connective', 'adipose') and n != 'skin':
+        out.append('hip-closeup')
+    # milestone 10: anterior abdominal wall, each body's own iliac crest -> xiphoid
+    alo, ahi = REF.get('crest', 1.06) - 0.10, REF.get('xiphoid', 1.25) + 0.04
+    if alo < c[1] < ahi and abs(c[0]) < 0.22 and s in ('skeletal', 'muscular', 'connective', 'adipose') and n != 'skin' \
+            and not re.search(r'vertebra|disc|spinal|psoas|quadratus|erector|multifid|rotator|interspin|intertrans|latissimus|serratus posterior', n):
+        out.append('abdomen-closeup')
     if c[1] > 1.30 and s in ('skeletal', 'sensory') and n != 'skin':
         out.append('head-skeleton')
     in_breast = 1.0 < c[1] < 1.36 and abs(c[0]) < 0.24
@@ -70,15 +80,16 @@ def categories(p, c):
     return out
 
 
-JOB_VIEWS = {'perineum-closeup': ['front', 'side', 'back', 'oblique', 'below'], 'hand-left': ['palm', 'dorsum', 'front', 'back'], 'hand-right': ['palm_r', 'dorsum_r', 'front', 'back'], 'head-skeleton': ['front', 'side'], 'thigh-closeup': ['front', 'side', 'back'], 'hip-closeup': ['back', 'side', 'oblique'], 'thigh-skeleton': ['front', 'side', 'back'],
+JOB_VIEWS = {'perineum-closeup': ['front', 'side', 'back', 'oblique', 'below'], 'hand-left': ['palm', 'dorsum', 'front', 'back'], 'hand-right': ['palm_r', 'dorsum_r', 'front', 'back'], 'head-skeleton': ['front', 'side'], 'thigh-closeup': ['front', 'side', 'back'], 'hip-closeup': ['back', 'side', 'oblique'], 'abdomen-closeup': ['front', 'oblique'], 'thigh-skeleton': ['front', 'side', 'back'],
              'breast-fat-on': ['front', 'side', 'oblique'], 'breast-fat-off': ['front', 'side', 'oblique'], 'vulva-closeup': ['front', 'below', 'oblique'],
              'uterus-isolated': ['front', 'side', 'oblique']}
 JOB_ALPHA = {'vulva-closeup': {'integumentary': 0.4}, 'breast-fat-on': {'adipose': 0.35}, 'all-systems': {'adipose': 0.35},
-             'all-systems-skin': {'integumentary': 0.2}}
+             'all-systems-skin': {'integumentary': 0.2}, 'all-systems-fat': {'adipose': 0.35, 'subcutaneous': 0.35}}
 NO_FRAME = {'vulva-closeup': {'integumentary'}}   # systems that do not set the camera framing
 
 
 HANDS = {}
+REF = {}            # per body: knee (femur bottom) and iliac crest heights, set in set_hands
 HAND_TIGHT = {}
 HAND_PTS = {}
 HAND_PTS_BY = {}
@@ -119,7 +130,16 @@ def export(body, path):
 
 
 def set_hands(atlas, M):
-    HANDS.clear(); HAND_TIGHT.clear(); HAND_PTS.clear()
+    HANDS.clear(); HAND_TIGHT.clear(); HAND_PTS.clear(); REF.clear()
+    fem = [M[p['id']]['pos'] for p in atlas['parts'] if re.fullmatch(r'(Left|Right) femur', p['name'])]
+    ili = [M[p['id']]['pos'] for p in atlas['parts'] if re.search(r'ilium|hip bone|coxal', p['name'], re.I) and p['system'] == 'skeletal']
+    if fem:
+        REF['knee'] = float(min(f[:, 1].min() for f in fem))
+    if ili:
+        REF['crest'] = float(max(f[:, 1].max() for f in ili))
+    st = [M[p['id']]['pos'] for p in atlas['parts'] if re.search(r'xiphoid|body of sternum|^sternum', p['name'], re.I) and p['system'] == 'skeletal']
+    if st:
+        REF['xiphoid'] = float(min(f[:, 1].min() for f in st))
     for side, sgn in (('left', 1), ('right', -1)):
         hb = [M[p['id']]['pos'] for p in atlas['parts'] if p['system'] == 'skeletal' and HAND_BONE.search(p['name'])
               and np.sign(M[p['id']]['pos'][:, 0].mean()) == sgn]
